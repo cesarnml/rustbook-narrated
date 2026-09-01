@@ -61,6 +61,18 @@ cd book && mdbook serve
 
 Then open <http://localhost:3000>.
 
+## Deployment
+
+Two independent, redundant deploys, both building from scratch (no
+vendored content, see above):
+
+- **GitHub Pages** — `.github/workflows/deploy.yml`, on push to `main`
+  and weekly.
+- **Vercel** — `vercel.json` + `scripts/vercel-build.sh` runs the same
+  pipeline (installs a minimal Rust toolchain since Vercel's build image
+  doesn't ship one, then mdbook/mdbook-quiz/pnpm/mdbook build), git-linked
+  to this repo so it redeploys on every push too.
+
 ## Scope
 
 This build intentionally skips upstream's `aquascope` preprocessor (the
