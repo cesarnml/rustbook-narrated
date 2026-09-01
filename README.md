@@ -1,5 +1,7 @@
 # The Rust Book, Narrated
 
+**Live:** <https://therustbooknowwithniceaudio.vercel.app>
+
 The full text of **"The Rust Programming Language"** — including the
 interactive quizzes from the [Brown CS edition](https://rust-book.cs.brown.edu)
 — with a "🔊 Listen" mode powered by [Kokoro](https://github.com/hexgrad/kokoro),
