@@ -1,0 +1,17 @@
+{
+  "name": "rustbook-narrated-narrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "In-browser Kokoro TTS 'Listen' toolbar for the narrated Rust Book, with a coding-term/heteronym pronunciation dictionary.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "kokoro-js": "^1.2.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.1"
+  }
+}

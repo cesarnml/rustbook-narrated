@@ -1,0 +1,91 @@
+name: Build and deploy narrated book
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, so upstream book/quiz updates show up here too — this repo
+    # doesn't vendor the book's content, it clones it fresh every build.
+    - cron: "17 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo tools
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-directories: ~/.cargo/bin
+
+      - name: Install mdbook + mdbook-quiz
+        run: |
+          cargo install mdbook --locked || true
+          cargo install mdbook-quiz --locked || true
+
+      - name: Clone the book (upstream, with quizzes)
+        run: |
+          git clone --depth 1 https://github.com/cognitive-engineering-lab/rust-book.git book
+          echo "book_commit=$(git -C book rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build the narrator bundle
+        working-directory: narrator
+        run: |
+          npm install
+          npm test
+          npm run build
+
+      - name: Install patch-script dependencies
+        run: npm install
+
+      - name: Inject the narrator into the book
+        run: |
+          cp narrator/dist/narrator.bundle.js book/narrator.bundle.js
+          cp narrator/src/narrator.css book/narrator.css
+          node scripts/patch-book-toml.mjs book/book.toml
+
+      - name: mdbook build
+        working-directory: book
+        run: mdbook build
+
+      - name: Record provenance
+        run: |
+          mkdir -p book/book
+          echo "Built from cognitive-engineering-lab/rust-book@${book_commit}" > book/book/BUILD_INFO.txt
+          date -u >> book/book/BUILD_INFO.txt
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: book/book
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

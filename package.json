@@ -1,0 +1,13 @@
+{
+  "name": "rustbook-narrated",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Build-time tooling for stitching the narrator into a freshly-cloned copy of the quizzed Rust Book. See narrator/ for the actual in-browser TTS code.",
+  "scripts": {
+    "patch-book-toml": "node scripts/patch-book-toml.mjs"
+  },
+  "dependencies": {
+    "smol-toml": "^1.8.0"
+  }
+}

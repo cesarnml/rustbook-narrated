@@ -1,0 +1,6 @@
+node_modules/
+book/
+narrator/dist/
+narrator/node_modules/
+*.log
+.DS_Store
