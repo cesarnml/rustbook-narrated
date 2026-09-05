@@ -21,8 +21,12 @@ const slug = id.startsWith("book/") ? id.replace(/^book\//, "").replace(/\/$/, "
 
 <div id="narrator-toolbar-root"></div>
 <!--
-  Plain script tag, not a processed one — the bundle at /narrator.bundle.js
-  is a build output (see package.json "build-narrator"), not a module Vite
-  should try to resolve/bundle itself.
+  is:inline so Vite doesn't try to resolve/bundle this itself (the file at
+  /narrator.bundle.js is a build output — see package.json
+  "build-narrator" — not a source module in this project). type="module"
+  is load-bearing: narrator/build.mjs bundles with esbuild's format:"esm",
+  and a classic (non-module) <script> throws on the bundle's `export`
+  syntax instead of running it — which is why the toolbar rendered
+  nothing at all on the first deploy, silently, on a green build.
 -->
-<script is:inline src="/narrator.bundle.js" defer></script>
+<script is:inline type="module" src="/narrator.bundle.js"></script>
