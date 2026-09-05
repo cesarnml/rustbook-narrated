@@ -95,11 +95,29 @@ const slugify = (s) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
+function extractAnchor(fileContents, anchorName) {
+  // mdbook's own anchor convention: `// ANCHOR: name` ... `// ANCHOR_END: name`
+  // comments in the source file mark the region to inline. We drop the
+  // anchor comment lines themselves from the extracted snippet.
+  const lines = fileContents.split("\n");
+  const startIdx = lines.findIndex((l) => l.includes(`ANCHOR: ${anchorName}`));
+  const endIdx = lines.findIndex((l) => l.includes(`ANCHOR_END: ${anchorName}`));
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return null;
+  return lines.slice(startIdx + 1, endIdx).join("\n");
+}
+
 function resolveInclude(fileDir, includeArg) {
-  const [incPath] = includeArg.trim().split(/\s+/); // ignore anchor:LINES syntax
+  // `{{#include path/to/file.rs}}` or `{{#include path/to/file.rs:anchor_name}}`
+  // — the ":anchor_name" suffix has no space before it, so split on ":"
+  // rather than whitespace (which only separates flags mdbook itself
+  // doesn't document here, so we don't otherwise handle them).
+  const [rawPathAndAnchor] = includeArg.trim().split(/\s+/);
+  const [incPath, anchorName] = rawPathAndAnchor.split(":");
   const target = join(fileDir, incPath);
-  if (existsSync(target)) return readFileSync(target, "utf8");
-  return null;
+  if (!existsSync(target)) return null;
+  const contents = readFileSync(target, "utf8");
+  if (!anchorName) return contents;
+  return extractAnchor(contents, anchorName) ?? contents;
 }
 
 function transformChapter(relPath, chapterSlug) {

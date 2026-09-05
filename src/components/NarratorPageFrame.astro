@@ -7,9 +7,12 @@
 import Default from "@astrojs/starlight/components/Footer.astro";
 import RecallQuiz from "./RecallQuiz.astro";
 
-// Astro 5 + Starlight 0.30 put route data on Astro.locals, not Astro.props.
-const route = Astro.locals.starlightRoute;
-const id = route?.entry?.id ?? "";
+// Starlight passes the full route data (StarlightRouteData) as Astro.props
+// to every overridable component — see @astrojs/starlight/props.ts and how
+// Footer.astro itself reads Astro.props.entry. (Astro.locals.starlightRoute
+// does NOT carry this in 0.30 — checked against node_modules directly
+// after the first attempt silently rendered no quiz.)
+const id = Astro.props.entry?.id ?? "";
 const slug = id.startsWith("book/") ? id.replace(/^book\//, "").replace(/\/$/, "") : null;
 ---
 
