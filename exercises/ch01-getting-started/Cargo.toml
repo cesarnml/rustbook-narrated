@@ -1,0 +1,12 @@
+[package]
+name = "ch01-getting-started"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "starter"
+path = "src/main.rs"
+
+[[bin]]
+name = "solution"
+path = "src/bin/solution.rs"

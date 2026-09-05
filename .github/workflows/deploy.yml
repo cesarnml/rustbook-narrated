@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-site:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repo
@@ -30,70 +30,19 @@ jobs:
         with:
           node-version: 20
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo tools
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-directories: ~/.cargo/bin
-
-      - name: Install mdbook + mdbook-quiz
-        run: |
-          cargo install mdbook --locked || true
-          cargo install mdbook-quiz --locked || true
-
-      - name: Clone the book (upstream, with quizzes)
-        run: |
-          git clone --depth 1 https://github.com/cognitive-engineering-lab/rust-book.git book
-          echo "book_commit=$(git -C book rev-parse HEAD)" >> "$GITHUB_ENV"
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 8
-
-      - name: Build the book's own JS extensions (feedback widget)
-        # book.toml's additional-css/js reference js-extensions/packages/feedback/dist/*,
-        # which is a build output, not something git tracks — build it ourselves.
-        working-directory: book/js-extensions
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
-
-      - name: Build the narrator bundle
-        working-directory: narrator
-        run: |
-          npm install
-          npm test
-          npm run build
-
-      - name: Install patch-script dependencies
+      - name: Install dependencies
         run: npm install
 
-      - name: Inject the narrator into the book
-        run: |
-          cp narrator/dist/narrator.bundle.js book/narrator.bundle.js
-          cp narrator/src/narrator.css book/narrator.css
-          node scripts/patch-book-toml.mjs book/book.toml
-
-      - name: mdbook build
-        working-directory: book
-        run: mdbook build
-
-      - name: Record provenance
-        run: |
-          mkdir -p book/book
-          echo "Built from cognitive-engineering-lab/rust-book@${book_commit}" > book/book/BUILD_INFO.txt
-          date -u >> book/book/BUILD_INFO.txt
+      - name: Build (fetches the book, builds narrator, builds Astro site)
+        run: npm run build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: book/book
+          path: dist
 
   deploy:
-    needs: build
+    needs: build-site
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -102,3 +51,33 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  test-exercises:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Node (for the vocabulary gate)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build + test every exercise's solution binary
+        run: |
+          for dir in exercises/ch*/; do
+            echo "::group::$dir"
+            (cd "$dir" && cargo build --bin solution && cargo run --bin solution)
+            echo "::endgroup::"
+          done
+
+      - name: Check exercises don't reach ahead of their chapter
+        run: |
+          npm install --omit=dev --no-save smol-toml
+          node scripts/check-vocabulary.mjs

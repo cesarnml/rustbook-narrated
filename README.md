@@ -1,87 +1,64 @@
 # The Rust Book, Narrated
 
-**Live:** <https://therustbooknowwithniceaudio.vercel.app>
+**Live:** <https://rust-book-narrated.vercel.app>
 
-The full text of **"The Rust Programming Language"** — including the
-interactive quizzes from the [Brown CS edition](https://rust-book.cs.brown.edu)
-— with a "🔊 Listen" mode powered by [Kokoro](https://github.com/hexgrad/kokoro),
-an open-weight TTS model that runs 100% in your browser. Follow along by
-ear instead of reading every word, without the reader mangling `char`,
-`enum`, `impl`, or mixing up "the object LIVES on the heap" with "nine
-LYVES".
+An [Astro](https://astro.build) + [Starlight](https://starlight.astro.build) companion site for **"The Rust
+Programming Language"** — including the interactive quizzes from the
+[Brown CS edition](https://rust-book.cs.brown.edu) — with a "🔊 Listen" mode powered by
+[Kokoro](https://github.com/hexgrad/kokoro) (100% in-browser), plus original hands-on exercises after every
+chapter.
 
-Nothing is vendored or retyped here: the book text and quizzes are cloned
-fresh from the official sources on every deploy, and this repo only adds
-the narration layer on top. See [`ATTRIBUTION.md`](./ATTRIBUTION.md) for
-exactly what comes from where and under what license.
+Sibling project: [`zed-rust-for-dummies`](https://github.com/cesarnml/zed-rust-for-dummies) shares this
+site's Starlight + narrator design, documenting a real Rust PR against the Zed editor instead of the book.
+
+Nothing from upstream is vendored or retyped: the book text and quiz question data are cloned fresh on
+every build and transformed into Starlight pages (see [`scripts/fetch-book.mjs`](./scripts/fetch-book.mjs)).
+See [`ATTRIBUTION.md`](./ATTRIBUTION.md) for exactly what comes from where and under what license.
 
 ## How it works
 
-- **Content**: [`cognitive-engineering-lab/rust-book`](https://github.com/cognitive-engineering-lab/rust-book)
-  is cloned at build time — the book text, chapter structure, and all 90+
-  quiz files, unmodified.
-- **Narrator**: `narrator/` is a small vanilla-JS toolbar, bundled with
-  esbuild, that gets injected into every rendered page. On first press of
-  ▶, it lazy-loads `kokoro-js` and Kokoro's model (cached by your browser
-  afterwards), reads the page's paragraphs/list items/headings one at a
-  time — skipping code blocks — and highlights + auto-scrolls to whatever
-  it's currently reading.
-- **Pronunciation**: before any text reaches Kokoro, it's run through
-  `narrator/src/pronunciation-dictionary.js` (coding jargon → plain-English
-  respellings, e.g. `SQL` → "sequel") and `narrator/src/heteronyms.js`
-  (context-aware disambiguation for words like `lives`, `read`, `object`,
-  `use`, `close` — same spelling, different sound depending on meaning).
-  See [`docs/DICTIONARY.md`](./docs/DICTIONARY.md) for the full
-  reasoning and how to extend it.
-- **Build**: `.github/workflows/deploy.yml` clones the book, builds the
-  narrator bundle, patches the book's `book.toml` to load it
-  (`scripts/patch-book-toml.mjs` — the *only* change made to upstream's
-  config), runs `mdbook build` (with the real `mdbook-quiz` preprocessor,
-  so quizzes are the real thing, not a reimplementation), and deploys the
-  output to GitHub Pages. It also runs weekly, so upstream book/quiz
-  updates show up here automatically.
+- **Content**: `scripts/fetch-book.mjs` clones
+  [`cognitive-engineering-lab/rust-book`](https://github.com/cognitive-engineering-lab/rust-book) at
+  build/dev time, parses `SUMMARY.md` for chapter order, strips mdbook-only directives
+  (`{{#quiz}}`, `{{#include}}`, `aquascope`), and writes one Starlight page per chapter plus one JSON file
+  of quiz question data per chapter with a quiz.
+- **Quizzes**: `mdbook-quiz` is an mdbook-only Rust preprocessor and can't run inside an Astro build, so
+  `src/components/RecallQuiz.astro` is an original, minimal quiz UI that renders the same question data.
+- **Narrator**: `narrator/` (unchanged from before) is a vanilla-JS toolbar, bundled with esbuild and
+  injected into every page via the `PageFrame` Starlight component override
+  (`src/components/NarratorPageFrame.astro`). Lazy-loads `kokoro-js` + the model on first ▶ press, reads
+  paragraphs/headings/list items (skipping code), and runs everything through
+  `narrator/src/pronunciation-dictionary.js` + `narrator/src/heteronyms.js` first — see
+  [`docs/DICTIONARY.md`](./docs/DICTIONARY.md).
+- **Exercises**: `exercises/chNN-*/` are original, standalone Cargo projects — a starter (with `TODO`s,
+  expected not to compile yet) and a reference solution — one per book chapter, ~1-2 hours each, gated by
+  `scripts/check-vocabulary.mjs` so a chapter's exercise can't accidentally use a concept the book hasn't
+  covered yet. See [Exercises](./exercises/) and the site's [Exercises page](https://rust-book-narrated.vercel.app/exercises/).
 
 ## Running it locally
 
 ```bash
-# 1. Build the narrator bundle
-cd narrator && npm install && npm test && npm run build && cd ..
-
-# 2. Get the book
-git clone --depth 1 https://github.com/cognitive-engineering-lab/rust-book.git book
-
-# 3. Wire the narrator in
-cp narrator/dist/narrator.bundle.js book/narrator.bundle.js
-cp narrator/src/narrator.css book/narrator.css
-npm install && node scripts/patch-book-toml.mjs book/book.toml
-
-# 4. Build the book (requires Rust + mdbook + mdbook-quiz)
-cargo install mdbook --locked
-cargo install mdbook-quiz --locked
-cd book && mdbook serve
+npm install
+npm run dev      # fetches the book, builds the narrator, checks vocabulary, then astro dev
 ```
-
-Then open <http://localhost:3000>.
 
 ## Deployment
 
-Two independent, redundant deploys, both building from scratch (no
-vendored content, see above):
+- **Vercel** — `vercel.json`, git-linked to this repo, redeploys on every push. Runs `npm run build`,
+  which fetches the book fresh via `npm run prebuild` first (no Rust/mdbook toolchain needed anymore —
+  see "How it works" above).
+- **GitHub Pages** — `.github/workflows/deploy.yml`, on push to `main` and weekly (so upstream book/quiz
+  updates show up here automatically even without a push).
 
-- **GitHub Pages** — `.github/workflows/deploy.yml`, on push to `main`
-  and weekly.
-- **Vercel** — `vercel.json` + `scripts/vercel-build.sh` runs the same
-  pipeline (installs a minimal Rust toolchain since Vercel's build image
-  doesn't ship one, then mdbook/mdbook-quiz/pnpm/mdbook build), git-linked
-  to this repo so it redeploys on every push too.
+CI also runs `cargo test` against every exercise's solution (not its starter — the starter is supposed to
+be incomplete) and `scripts/check-vocabulary.mjs` against all of them.
 
 ## Scope
 
-This build intentionally skips upstream's `aquascope` preprocessor (the
-interactive ownership/borrow-checker diagrams) — it needs its own analysis
-backend, which is out of scope for what this project is adding. Everything
-else — every chapter, every quiz — comes through untouched.
+Same as before: upstream's `aquascope` preprocessor (interactive ownership/borrow-check diagrams) needs its
+own analysis backend and is out of scope here. Everything else — every chapter, every quiz — comes through.
 
 ## License
 
-MIT OR Apache-2.0, matching upstream — see `LICENSE-MIT` / `LICENSE-APACHE`.
+Site code: MIT OR Apache-2.0, matching upstream — see `LICENSE-MIT` / `LICENSE-APACHE`. Book text/quizzes:
+see `ATTRIBUTION.md`.

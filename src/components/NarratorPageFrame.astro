@@ -1,0 +1,25 @@
+---
+// Starlight component override (see astro.config.mjs `components.Footer`).
+// Footer is the documented override point for appending content below the
+// article body — this adds a recall quiz there for book chapter pages,
+// plus mounts the narrator toolbar globally. It renders Starlight's own
+// Footer underneath, unchanged.
+import Default from "@astrojs/starlight/components/Footer.astro";
+import RecallQuiz from "./RecallQuiz.astro";
+
+// Astro 5 + Starlight 0.30 put route data on Astro.locals, not Astro.props.
+const route = Astro.locals.starlightRoute;
+const id = route?.entry?.id ?? "";
+const slug = id.startsWith("book/") ? id.replace(/^book\//, "").replace(/\/$/, "") : null;
+---
+
+{slug && <RecallQuiz slug={slug} />}
+<Default {...Astro.props} />
+
+<div id="narrator-toolbar-root"></div>
+<!--
+  Plain script tag, not a processed one — the bundle at /narrator.bundle.js
+  is a build output (see package.json "build-narrator"), not a module Vite
+  should try to resolve/bundle itself.
+-->
+<script is:inline src="/narrator.bundle.js" defer></script>

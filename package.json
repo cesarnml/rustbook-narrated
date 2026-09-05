@@ -1,13 +1,24 @@
 {
-  "name": "rustbook-narrated",
-  "version": "0.1.0",
+  "name": "rust-book-narrated",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Build-time tooling for stitching the narrator into a freshly-cloned copy of the quizzed Rust Book. See narrator/ for the actual in-browser TTS code.",
+  "description": "Astro/Starlight companion site for The Rust Programming Language (Brown CS 'quizzed' edition), with a Kokoro-JS narrator and original per-chapter exercises. Book text + quizzes are cloned and transformed at build time — nothing is vendored. See ATTRIBUTION.md.",
   "scripts": {
-    "patch-book-toml": "node scripts/patch-book-toml.mjs"
+    "fetch-book": "node scripts/fetch-book.mjs",
+    "check-vocabulary": "node scripts/check-vocabulary.mjs",
+    "build-narrator": "cd narrator && npm install && npm test && npm run build && mkdir -p ../public ../src/styles && cp dist/narrator.bundle.js ../public/narrator.bundle.js && cp src/narrator.css ../src/styles/narrator.css",
+    "prebuild": "npm run build-narrator && npm run fetch-book && npm run check-vocabulary",
+    "dev": "npm run prebuild && astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/starlight": "^0.30.0",
+    "astro": "^5.0.0",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
     "smol-toml": "^1.8.0"
   }
 }

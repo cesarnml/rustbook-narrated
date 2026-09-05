@@ -1,5 +1,4 @@
 {
-  "buildCommand": "npm install && bash scripts/vercel-build.sh",
-  "outputDirectory": "book/book",
-  "installCommand": "echo 'skipping default install — vercel-build.sh handles it'"
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": "dist"
 }
