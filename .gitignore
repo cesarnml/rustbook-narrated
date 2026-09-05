@@ -17,3 +17,4 @@ src/styles/narrator.css
 
 *.log
 .DS_Store
+.docker-home/
