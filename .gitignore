@@ -1,6 +1,15 @@
 node_modules/
-book/
 narrator/dist/
 narrator/node_modules/
+dist/
+.astro/
+
+# scripts/fetch-book.mjs writes these fresh on every build/dev run —
+# nothing from upstream is vendored/committed. See README.md.
+.book-src/
+src/content/docs/book/
+src/content/quizzes/
+src/generated/
+
 *.log
 .DS_Store

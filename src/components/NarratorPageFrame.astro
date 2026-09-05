@@ -1,0 +1,28 @@
+---
+// Starlight component override (see astro.config.mjs `components.PageFrame`).
+// Wraps the default PageFrame so every page gets:
+//   1. the Kokoro-JS narrator toolbar (client-side only, lazy-loaded)
+//   2. a recall quiz appended after the content, for book chapter pages
+// Falls back to Starlight's own PageFrame for the actual page chrome —
+// this only adds to it, it doesn't reimplement it.
+import Default from "@astrojs/starlight/components/PageFrame.astro";
+import RecallQuiz from "./RecallQuiz.astro";
+
+const { entry } = Astro.props;
+const slug = entry?.id?.startsWith("book/") ? entry.id.replace(/^book\//, "").replace(/\/$/, "") : null;
+---
+
+<Default {...Astro.props}>
+  <slot name="before-title" slot="before-title" />
+  <slot />
+  {slug && <RecallQuiz slug={slug} />}
+</Default>
+
+<div id="narrator-toolbar-root"></div>
+<script>
+  // Lazy — kokoro-js and the model are only fetched on first ▶ press.
+  // See narrator/src/kokoro-reader.js for the actual reader logic; this
+  // just mounts the bundle esbuild produced (public/narrator.bundle.js,
+  // copied there by scripts/build-narrator, see package.json prebuild).
+  import("/narrator.bundle.js");
+</script>

@@ -1,0 +1,82 @@
+---
+// Renders one chapter's recall quiz from the structured question data
+// scripts/fetch-book.mjs extracted from upstream's mdbook-quiz .toml files.
+// This is our own quiz UI (mdbook-quiz itself is an mdbook-only Rust
+// preprocessor and can't run inside Astro) — it consumes the *data*,
+// not upstream's rendering code.
+interface Props {
+  slug: string;
+}
+const { slug } = Astro.props;
+
+let questions = [];
+try {
+  const mod = await import(`../content/quizzes/${slug}.json`);
+  const all = mod.default ?? [];
+  // v1 only renders MultipleChoice — upstream's ShortAnswer/Tracing types
+  // need free-text/code-output grading this simple component doesn't do.
+  questions = all
+    .filter((q) => q.type === "MultipleChoice")
+    .map((q) => {
+      const choices = [...(q.prompt?.distractors ?? [])];
+      const answerIndex = q.prompt?.answerIndex ?? 0;
+      choices.splice(answerIndex, 0, q.answer?.answer ?? "");
+      return { prompt: q.prompt?.prompt ?? "", choices, answer: q.answer?.answer ?? "" };
+    });
+} catch {
+  // no quiz for this chapter — fine, not every chapter has one
+}
+---
+
+{
+  questions.length > 0 && (
+    <section class="recall-quiz" data-recall-quiz>
+      <h2>Quick recall check</h2>
+      <p>Answer before moving on — these mirror the book's own comprehension quizzes.</p>
+      {questions.map((q, qi) => (
+        <fieldset class="recall-quiz__question" data-question data-answer={JSON.stringify(q.answer)}>
+          <legend set:html={q.prompt} />
+          <ul>
+            {q.choices.map((choice) => (
+              <li>
+                <label>
+                  <input type="radio" name={`${slug}-q${qi}`} value={choice} />
+                  <span set:html={choice} />
+                </label>
+              </li>
+            ))}
+          </ul>
+          <p class="recall-quiz__feedback" hidden></p>
+        </fieldset>
+      ))}
+      <button type="button" data-check-quiz>Check answers</button>
+    </section>
+  )
+}
+
+<script>
+  // No framework needed — this is intentionally the simplest possible
+  // client-side check: compare selected radio value(s) to the recorded
+  // answer and toggle a feedback line per question.
+  document.querySelectorAll("[data-check-quiz]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = btn.closest("[data-recall-quiz]");
+      section?.querySelectorAll("[data-question]").forEach((fs) => {
+        const expected = JSON.parse(fs.getAttribute("data-answer") || "null");
+        const picked = fs.querySelector("input:checked");
+        const feedback = fs.querySelector(".recall-quiz__feedback");
+        if (!feedback) return;
+        feedback.hidden = false;
+        if (!picked) {
+          feedback.textContent = "Pick an answer first.";
+        } else if (Array.isArray(expected) ? expected.includes(picked.value) : picked.value === expected) {
+          feedback.textContent = "✓ correct";
+          feedback.className = "recall-quiz__feedback recall-quiz__feedback--correct";
+        } else {
+          feedback.textContent = "✗ not quite — reread the section above before continuing";
+          feedback.className = "recall-quiz__feedback recall-quiz__feedback--wrong";
+        }
+      });
+    });
+  });
+</script>

@@ -1,0 +1,11 @@
+{
+  "_comment": "Maps a Rust token/concept to the chapter index it's first legal in, per the official book's ordering (which the Brown fork preserves). scripts/check-vocabulary.mjs fails an exercise if it uses a token whose chapter is greater than the exercise's own chapter — cross-checked at build time against src/generated/chapters.json so this table can't silently drift from whatever fetch-book.mjs actually cloned.",
+  "tokens": {
+    "println!": 1, "cargo": 1,
+    "let": 2, "mut": 2, "match": 2, "u32": 2, "String::new": 2, "std::io": 2,
+    "i32": 3, "f64": 3, "bool": 3, "char": 3, "tuple": 3, "array": 3, "loop": 3, "while": 3, "for": 3, "fn": 3,
+    "String": 4, "&": 4, "&mut": 4, "move": 4, "clone": 4, "slice": 4, "&str": 4,
+    "struct": 5, "impl": 5, "#[derive(Debug)]": 5,
+    "enum": 6, "Option": 6, "if let": 6
+  }
+}

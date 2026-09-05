@@ -21,9 +21,19 @@ license — see `LICENSE-MIT`/`LICENSE-APACHE` in that repo. It adds the
 This build intentionally **drops** the upstream `aquascope` preprocessor
 (interactive ownership/borrow-checker visualizations) — it needs its own
 analysis backend, which is out of scope for what this project adds. Every
-chapter and every quiz from upstream is otherwise unmodified. See
-`scripts/patch-book-toml.mjs` for the exact, minimal change this project
-makes to the upstream `book.toml`.
+chapter's text is otherwise unmodified. Quizzes are re-rendered from
+upstream's own question data (see below) rather than run through the real
+`mdbook-quiz` preprocessor, since that preprocessor only runs inside an
+`mdbook build` and this site is built with Astro instead. See
+`scripts/fetch-book.mjs` for the exact transform.
+
+## The exercises and quiz UI
+
+`exercises/` (per-chapter Cargo projects) and `src/components/RecallQuiz.astro`
+(the in-browser quiz UI) are original to this repo — written for it, not
+derived from either upstream repo. `RecallQuiz.astro` consumes upstream's
+quiz *question data*, parsed from their `.toml` files at build time, but
+its rendering/scoring code is this project's own.
 
 ## The voice
 
@@ -37,7 +47,9 @@ audio, and no page text, is ever sent to a server.
 
 - `narrator/` — the "Listen" toolbar, the coding-term/heteronym
   pronunciation dictionary, and the text-to-Kokoro wiring.
-- `scripts/patch-book-toml.mjs` — the build-time patch described above.
+- `scripts/fetch-book.mjs` — the build-time clone + transform described above.
+- `src/components/RecallQuiz.astro`, `src/components/NarratorPageFrame.astro` — the quiz UI and narrator wiring.
+- `exercises/` — the per-chapter Cargo exercises.
 - `.github/workflows/deploy.yml` — ties it all together for GitHub Pages.
 
 Licensed the same way as its upstream, MIT OR Apache-2.0 (`LICENSE-MIT` /
