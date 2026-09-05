@@ -9,7 +9,11 @@ fn longest_word(s: &str) -> &str {
 }
 
 fn word_count(s: &str) -> usize {
-    s.split_whitespace().count()
+    let mut count = 0;
+    for _word in s.split_whitespace() {
+        count += 1;
+    }
+    count
 }
 
 fn main() {

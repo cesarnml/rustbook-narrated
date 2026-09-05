@@ -22,8 +22,8 @@ export default defineConfig({
       },
       customCss: ["./src/styles/narrator.css"],
       components: {
-        // Injects the narrator toolbar into every book/exercise page.
-        PageFrame: "./src/components/NarratorPageFrame.astro",
+        // Injects the narrator toolbar + recall quiz below every page's content.
+        Footer: "./src/components/NarratorPageFrame.astro",
       },
       sidebar: [
         {

@@ -1,11 +1,18 @@
 {
-  "_comment": "Maps a Rust token/concept to the chapter index it's first legal in, per the official book's ordering (which the Brown fork preserves). scripts/check-vocabulary.mjs fails an exercise if it uses a token whose chapter is greater than the exercise's own chapter — cross-checked at build time against src/generated/chapters.json so this table can't silently drift from whatever fetch-book.mjs actually cloned.",
+  "_comment": "Maps a Rust concept marker to the chapter it's first legal in. Only genuine concept introductions belong here (things the book actually teaches as new, chapter by chapter) — NOT baseline syntax primitives (let, mut, fn, loop, i32, &, String, ...) that are legal from chapter 1 onward once introduced and would otherwise false-positive on every later exercise. scripts/check-vocabulary.mjs fails an exercise whose solution uses a marker whose chapter is greater than the exercise's own chapter.",
   "tokens": {
-    "println!": 1, "cargo": 1,
-    "let": 2, "mut": 2, "match": 2, "u32": 2, "String::new": 2, "std::io": 2,
-    "i32": 3, "f64": 3, "bool": 3, "char": 3, "tuple": 3, "array": 3, "loop": 3, "while": 3, "for": 3, "fn": 3,
-    "String": 4, "&": 4, "&mut": 4, "move": 4, "clone": 4, "slice": 4, "&str": 4,
     "struct": 5, "impl": 5, "#[derive(Debug)]": 5,
-    "enum": 6, "Option": 6, "if let": 6
+    "enum": 6, "Option": 6, "if let": 6,
+    "Result": 9, "unwrap()": 9, "expect(": 2, "panic!": 9, "?": 9,
+    "Vec": 8, "HashMap": 8,
+    "trait": 10, "impl Trait": 10, "dyn": 10,
+    "'a": 10,
+    "Box": 15, "Rc": 15, "RefCell": 15,
+    "#[test]": 11, "#[cfg(test)]": 11,
+    ".iter()": 13, ".map(": 13, ".filter(": 13, "|x|": 13, "impl Fn": 13,
+    "thread::spawn": 16, "Arc": 16, "Mutex": 16,
+    "async": 17, ".await": 17,
+    "unsafe": 19,
+    "macro_rules!": 19
   }
 }

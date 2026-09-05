@@ -7,7 +7,7 @@
   "scripts": {
     "fetch-book": "node scripts/fetch-book.mjs",
     "check-vocabulary": "node scripts/check-vocabulary.mjs",
-    "build-narrator": "cd narrator && npm install && npm test && npm run build && cp dist/narrator.bundle.js ../public/narrator.bundle.js && cp src/narrator.css ../src/styles/narrator.css",
+    "build-narrator": "cd narrator && npm install && npm test && npm run build && mkdir -p ../public ../src/styles && cp dist/narrator.bundle.js ../public/narrator.bundle.js && cp src/narrator.css ../src/styles/narrator.css",
     "prebuild": "npm run build-narrator && npm run fetch-book && npm run check-vocabulary",
     "dev": "npm run prebuild && astro dev",
     "build": "astro build",

@@ -9,10 +9,15 @@ interface Props {
 }
 const { slug } = Astro.props;
 
+// Static glob so Vite can see every possible quiz file at build time —
+// a template-string dynamic import of a gitignored, generated path isn't
+// something the bundler can statically discover.
+const quizModules = import.meta.glob("../data/quizzes/*.json", { eager: true });
+
 let questions = [];
-try {
-  const mod = await import(`../content/quizzes/${slug}.json`);
-  const all = mod.default ?? [];
+{
+  const mod = quizModules[`../data/quizzes/${slug}.json`];
+  const all = mod?.default ?? [];
   // v1 only renders MultipleChoice — upstream's ShortAnswer/Tracing types
   // need free-text/code-output grading this simple component doesn't do.
   questions = all
@@ -23,8 +28,6 @@ try {
       choices.splice(answerIndex, 0, q.answer?.answer ?? "");
       return { prompt: q.prompt?.prompt ?? "", choices, answer: q.answer?.answer ?? "" };
     });
-} catch {
-  // no quiz for this chapter — fine, not every chapter has one
 }
 ---
 

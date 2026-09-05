@@ -40,7 +40,7 @@ import { parse as parseToml } from "smol-toml";
 const REPO_URL = "https://github.com/cognitive-engineering-lab/rust-book.git";
 const CLONE_DIR = ".book-src";
 const OUT_DOCS = "src/content/docs/book";
-const OUT_QUIZ = "src/content/quizzes";
+const OUT_QUIZ = "src/data/quizzes";
 const OUT_GEN = "src/generated";
 
 function clean(dir) {
@@ -115,8 +115,11 @@ function transformChapter(relPath, chapterSlug) {
     return "";
   });
 
-  // {{#include path}} -> inline verbatim, or leave a visible TODO
-  body = body.replace(/\{\{\s*#include\s+(.+?)\s*\}\}/g, (_, arg) => {
+  // {{#include path}} / {{#rustdoc_include path}} -> inline verbatim, or
+  // leave a visible TODO. rustdoc_include is the same transclusion
+  // directive, just wrapping the target in a rustdoc-hidden-lines fence;
+  // we don't need that distinction since we don't run rustdoc ourselves.
+  body = body.replace(/\{\{\s*#(?:rustdoc_)?include\s+(.+?)\s*\}\}/g, (_, arg) => {
     const inlined = resolveInclude(fileDir, arg);
     return inlined ?? `<!-- TODO: unresolved {{#include ${arg}}} -->`;
   });
