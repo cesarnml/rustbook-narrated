@@ -57,17 +57,31 @@ async function main() {
     const timing = [];
     let cursor = 0;
     let rate = 24000;
+    const pageStart = Date.now();
 
-    for (const sentence of page.sentences) {
+    for (const [si, sentence] of page.sentences.entries()) {
       const text = sentence.speech.trim();
       if (!text) continue;
       let audio;
+      const sentStart = Date.now();
       try {
         audio = await tts.generate(text, { voice: job.voice });
       } catch (err) {
         // One bad sentence must not lose the page.
         console.error(`  ! ${page.key} [${sentence.i}]: ${err.message}`);
         continue;
+      }
+      const sentSecs = (Date.now() - sentStart) / 1000;
+      // Progress within a page, not just per-page: on a long unattended
+      // run the previous silence (one line only after a whole page
+      // finished) made a real stall indistinguishable from a slow chapter.
+      // Every 10th sentence, or any single sentence taking unusually long
+      // (a sign of a bad input degrading generation) — not every sentence,
+      // to keep the log readable across a ~10k-sentence book.
+      if (si % 10 === 0 || sentSecs > 15) {
+        console.log(
+          `    ${page.key} [${si + 1}/${page.sentences.length}] +${sentSecs.toFixed(1)}s (page elapsed ${((Date.now() - pageStart) / 1000).toFixed(0)}s)`,
+        );
       }
 
       rate = audio.sampling_rate;

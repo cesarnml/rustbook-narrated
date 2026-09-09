@@ -154,6 +154,25 @@ function transformChapter(relPath, chapterSlug) {
   return { body, quizFiles };
 }
 
+// Every upstream chapter file leads with its own heading (usually `##
+// <same title>`), and Starlight *also* renders a page H1 from this site's
+// own frontmatter `title` (set from SUMMARY.md's title for the same
+// chapter, just below). Left alone, that's the title shown twice in a row.
+// Only strips when the two actually match (case/trailing-punctuation
+// insensitive) — a chapter whose first heading legitimately differs from
+// its SUMMARY.md title keeps that heading.
+function stripDuplicateLeadingHeading(body, title) {
+  const normalize = (s) => s.trim().toLowerCase().replace(/[.?!:]+$/, "");
+  const lines = body.split("\n");
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === "") i++;
+  const match = lines[i]?.match(/^#{1,6}\s+(.*)$/);
+  if (!match || normalize(match[1]) !== normalize(title)) return body;
+  let end = i + 1;
+  while (end < lines.length && lines[end].trim() === "") end++;
+  return lines.slice(end).join("\n");
+}
+
 const sidebarOut = [];
 const vocabularyChapters = []; // written for scripts/check-vocabulary.mjs to cross-check against
 
@@ -167,8 +186,9 @@ for (const section of sections) {
     // for nested sub-chapter pages (item.depth > 0).
     const baseName = item.relPath.replace(/\.md$/, "").split("/").pop();
     const slug = baseName || `${String(chapterIndex).padStart(3, "0")}-${slugify(item.title)}`;
-    const { body, quizFiles } = transformChapter(item.relPath, slug);
-    if (body == null) continue;
+    const { body: rawBody, quizFiles } = transformChapter(item.relPath, slug);
+    if (rawBody == null) continue;
+    const body = stripDuplicateLeadingHeading(rawBody, item.title);
 
     const frontmatter = [
       "---",
