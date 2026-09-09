@@ -46,12 +46,11 @@ npm run dev      # fetches the book, builds the narrator, checks vocabulary, the
 
 - **Vercel** — `vercel.json`, git-linked to this repo, redeploys on every push. Runs `npm run build`,
   which fetches the book fresh via `npm run prebuild` first (no Rust/mdbook toolchain needed anymore —
-  see "How it works" above).
-- **GitHub Pages** — `.github/workflows/deploy.yml`, on push to `main` and weekly (so upstream book/quiz
-  updates show up here automatically even without a push).
+  see "How it works" above). This is the only deployment target; there is no GitHub Pages build.
 
-CI also runs `cargo test` against every exercise's solution (not its starter — the starter is supposed to
-be incomplete) and `scripts/check-vocabulary.mjs` against all of them.
+`.github/workflows/ci.yml` runs `cargo test` against every exercise's solution (not its starter — the
+starter is supposed to be incomplete) and `scripts/check-vocabulary.mjs` against all of them, on every push
+and PR.
 
 ## Scope
 

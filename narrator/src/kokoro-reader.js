@@ -1,32 +1,28 @@
-// "Listen" mode: reads the current mdBook page aloud with Kokoro TTS,
-// running entirely in the browser (WASM/WebGPU — nothing is sent to a
-// server). Injected into every page via book.toml's `additional-js`
-// (see scripts/patch-book-toml.mjs).
+// "Listen" mode: plays pregenerated Kokoro TTS audio for the current page,
+// block by block. Audio is generated build-time/offline on a real machine
+// (see ../generate-audio.mjs) and shipped as static files under
+// /audio/<hash>.<ext>, keyed by a hash of each block's speakable text — so
+// a block whose upstream text hasn't changed always resolves to the same
+// file, and a block that HAS changed (or was never generated) just has no
+// match. There is no in-browser generation fallback: a miss means that one
+// block is silently skipped, not synthesized live.
 //
-// Kokoro and its ~80MB model are only fetched the first time someone
-// presses Play, and are cached by the browser afterwards.
+// Injected into every page via the PageFrame Starlight component override
+// (see src/components/NarratorPageFrame.astro).
 
 import { toSpeakableText } from "./preprocess.js";
 
-const MODEL_ID = "onnx-community/Kokoro-82M-v1.0-ONNX";
-const DEFAULT_VOICE = "af_heart";
-const VOICES = [
-  ["af_heart", "Heart (US, warm)"],
-  ["af_bella", "Bella (US)"],
-  ["am_michael", "Michael (US)"],
-  ["bf_emma", "Emma (UK)"],
-  ["bm_george", "George (UK)"],
-];
-
+const AUDIO_EXT = "mp3";
 const READABLE_SELECTOR = "p, li, blockquote, h1, h2, h3, h4, dt, dd";
-const SKIP_SELECTOR = "pre, .mdbook-quiz, script, style, nav, .sidebar";
+// .recall-quiz is this repo's own quiz UI (src/components/RecallQuiz.astro) —
+// its question/feedback text isn't book prose and was never pregenerated.
+const SKIP_SELECTOR = "pre, .recall-quiz, script, style, nav, .sidebar, #narrator-bar";
 
-let tts = null;
-let loadingPromise = null;
 let queue = [];
 let queueIndex = -1;
 let playing = false;
 let currentAudio = null;
+let hashCache = new WeakMap();
 
 function findContentRoot() {
   return document.querySelector("#content main") || document.querySelector("main") || document.body;
@@ -63,28 +59,6 @@ function highlight(el) {
   el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-async function ensureModel() {
-  if (tts) return tts;
-  if (loadingPromise) return loadingPromise;
-
-  setStatus("Loading voice…");
-  loadingPromise = (async () => {
-    const { KokoroTTS } = await import("kokoro-js");
-    const device = "webgpu" in navigator ? "webgpu" : "wasm";
-    tts = await KokoroTTS.from_pretrained(MODEL_ID, { dtype: "q8", device });
-    return tts;
-  })();
-
-  try {
-    return await loadingPromise;
-  } catch (err) {
-    loadingPromise = null;
-    setStatus("Voice failed to load");
-    console.error("[narrator] failed to load Kokoro:", err);
-    throw err;
-  }
-}
-
 function getSetting(key, fallback) {
   try {
     return localStorage.getItem(key) ?? fallback;
@@ -101,28 +75,39 @@ function setSetting(key, value) {
   }
 }
 
-async function speakBlock(el) {
-  const model = await ensureModel();
+// Same hash a block's precomputed file is named after — see
+// ../generate-audio.mjs's hashText(). SHA-1 of the speakable (post
+// pronunciation-dictionary/heteronym) text is plenty for content-addressing
+// here; this isn't a security boundary.
+async function hashFor(el) {
+  if (hashCache.has(el)) return hashCache.get(el);
   const speakable = toSpeakableText(el.textContent.trim());
-  const voice = getSetting("narrator-voice", DEFAULT_VOICE);
-  const speed = Number(getSetting("narrator-speed", "1"));
+  const bytes = new TextEncoder().encode(speakable);
+  const digest = await crypto.subtle.digest("SHA-1", bytes);
+  const hash = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  hashCache.set(el, hash);
+  return hash;
+}
 
-  const result = await model.generate(speakable, { voice, speed });
-  const blob = typeof result.toBlob === "function" ? result.toBlob() : result;
-  const url = URL.createObjectURL(blob);
+async function playBlock(el) {
+  const hash = await hashFor(el);
+  const url = `/audio/${hash}.${AUDIO_EXT}`;
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const audio = new Audio(url);
+    audio.playbackRate = Number(getSetting("narrator-speed", "1"));
     currentAudio = audio;
-    audio.onended = () => {
-      URL.revokeObjectURL(url);
+    audio.onended = () => resolve();
+    audio.onerror = () => {
+      // No pregenerated audio for this block (never generated, or upstream
+      // text changed since the last generation run) — skip it silently
+      // rather than falling back to live generation.
+      console.warn(`[narrator] no audio for block (${url}), skipping`);
       resolve();
     };
-    audio.onerror = (e) => {
-      URL.revokeObjectURL(url);
-      reject(e);
-    };
-    audio.play().catch(reject);
+    audio.play().catch(() => resolve());
   });
 }
 
@@ -133,13 +118,7 @@ async function playFrom(index) {
     const el = queue[queueIndex];
     highlight(el);
     setStatus(`Reading ${queueIndex + 1} / ${queue.length}`);
-    try {
-      await speakBlock(el);
-    } catch (err) {
-      console.error("[narrator] playback error:", err);
-      setStatus("Playback error — see console");
-      break;
-    }
+    await playBlock(el);
     if (!playing) break;
   }
   if (queueIndex >= queue.length) {
@@ -211,17 +190,6 @@ function buildToolbar() {
     playFrom(Math.min(queue.length - 1, queueIndex + 1));
   });
 
-  const voiceSelect = document.createElement("select");
-  voiceSelect.title = "Voice";
-  for (const [value, label] of VOICES) {
-    const opt = document.createElement("option");
-    opt.value = value;
-    opt.textContent = label;
-    voiceSelect.appendChild(opt);
-  }
-  voiceSelect.value = getSetting("narrator-voice", DEFAULT_VOICE);
-  voiceSelect.addEventListener("change", () => setSetting("narrator-voice", voiceSelect.value));
-
   const speedSelect = document.createElement("select");
   speedSelect.title = "Speed";
   for (const speed of ["0.75", "1", "1.25", "1.5"]) {
@@ -231,13 +199,16 @@ function buildToolbar() {
     speedSelect.appendChild(opt);
   }
   speedSelect.value = getSetting("narrator-speed", "1");
-  speedSelect.addEventListener("change", () => setSetting("narrator-speed", speedSelect.value));
+  speedSelect.addEventListener("change", () => {
+    setSetting("narrator-speed", speedSelect.value);
+    if (currentAudio) currentAudio.playbackRate = Number(speedSelect.value);
+  });
 
   const status = document.createElement("span");
   status.id = "narrator-status";
   status.textContent = "Listen";
 
-  bar.append(prevBtn, playBtn, nextBtn, stopBtn, voiceSelect, speedSelect, status);
+  bar.append(prevBtn, playBtn, nextBtn, stopBtn, speedSelect, status);
   document.body.appendChild(bar);
 }
 

@@ -1,0 +1,37 @@
+name: Test exercises
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  test-exercises:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Node (for the vocabulary gate)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build + test every exercise's solution binary
+        run: |
+          for dir in exercises/ch*/; do
+            echo "::group::$dir"
+            (cd "$dir" && cargo build --bin solution && cargo run --bin solution)
+            echo "::endgroup::"
+          done
+
+      - name: Check exercises don't reach ahead of their chapter
+        run: |
+          npm install --omit=dev --no-save smol-toml
+          node scripts/check-vocabulary.mjs

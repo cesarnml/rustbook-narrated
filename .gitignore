@@ -18,3 +18,7 @@ src/styles/narrator.css
 *.log
 .DS_Store
 .docker-home/
+
+# scratch output from narrator/generate-chapter-test.mjs — the published
+# result is narrator/publish-chapter.mjs's copy into public/audio/
+.audio-test/
