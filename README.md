@@ -1,6 +1,6 @@
 # The Rust Book, Narrated
 
-**Live:** <https://rust-book-narrated.vercel.app>
+**Live:** <https://therustbooknowwithniceaudio.vercel.app>
 
 An [Astro](https://astro.build) + [Starlight](https://starlight.astro.build) companion site for **"The Rust
 Programming Language"** — including the interactive quizzes from the
@@ -33,7 +33,7 @@ See [`ATTRIBUTION.md`](./ATTRIBUTION.md) for exactly what comes from where and u
 - **Exercises**: `exercises/chNN-*/` are original, standalone Cargo projects — a starter (with `TODO`s,
   expected not to compile yet) and a reference solution — one per book chapter, ~1-2 hours each, gated by
   `scripts/check-vocabulary.mjs` so a chapter's exercise can't accidentally use a concept the book hasn't
-  covered yet. See [Exercises](./exercises/) and the site's [Exercises page](https://rust-book-narrated.vercel.app/exercises/).
+  covered yet. See [Exercises](./exercises/) and the site's [Exercises page](https://therustbooknowwithniceaudio.vercel.app/exercises/).
 
 ## Running it locally
 

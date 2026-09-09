@@ -11,7 +11,7 @@ const bookSidebar = existsSync(sidebarPath)
   : [{ label: "Book (run `npm run fetch-book` first)", items: [] }];
 
 export default defineConfig({
-  site: "https://rust-book-narrated.vercel.app",
+  site: "https://therustbooknowwithniceaudio.vercel.app",
   integrations: [
     starlight({
       title: "The Rust Book, Narrated",
