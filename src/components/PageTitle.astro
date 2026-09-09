@@ -1,0 +1,28 @@
+---
+/**
+ * Starlight `PageTitle` override — the default title, plus the narration
+ * player directly beneath it.
+ *
+ * This slot is the one place that is above the content on every docs page
+ * and below the breadcrumb chrome, so the player reads as part of the page
+ * rather than part of the navigation. 1:1 with zed-rust-for-dummies's own
+ * src/components/PageTitle.astro, which is why the player lives here and
+ * not in the Footer override (NarratorPageFrame.astro) — that renders at
+ * the very bottom of a long chapter, off-screen on load.
+ *
+ * `pagination.next` comes from Starlight's own sidebar ordering (the same
+ * config astro.config.mjs already builds from src/generated/sidebar.json),
+ * which is what makes the player's auto-advance follow the reading order
+ * without a separately-maintained list.
+ */
+import Default from "@astrojs/starlight/components/PageTitle.astro";
+import Narration from "./Narration.astro";
+
+// Astro.locals.starlightRoute doesn't carry route data in this Starlight
+// version (see NarratorPageFrame.astro's note) — Astro.props does, same as
+// `entry` there.
+const { pagination } = Astro.props;
+---
+
+<Default {...Astro.props}><slot /></Default>
+<Narration next={pagination?.next?.href} />

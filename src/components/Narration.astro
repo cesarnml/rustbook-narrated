@@ -14,39 +14,25 @@
  * The audio element is `preload="none"`, so a visitor who never presses play
  * downloads none of it.
  *
- * Ported from zed-rust-for-dummies's src/components/Narration.astro. The
- * `next` prop there comes from a static sidebar.mjs; this site's reading
- * order is generated at build time (src/generated/sidebar.json), so it's
- * read here directly instead of being threaded in as a prop from the caller.
+ * Ported from zed-rust-for-dummies's src/components/Narration.astro,
+ * including where `next` comes from: the caller (src/components/
+ * PageTitle.astro) passes Starlight's own `pagination.next.href`, so
+ * auto-advance follows the real sidebar order with no separately
+ * maintained list.
  */
 import fs from "node:fs";
 import path from "node:path";
 
+interface Props {
+	/** Href of the next page in sidebar order, for auto-advance. */
+	next?: string | undefined;
+}
+
+const { next } = Astro.props;
+
 // `/book/ch04-01-what-is-ownership/` → `book/ch04-01-what-is-ownership`,
 // matching the key narrate.mjs derives from the built file's path.
 const key = Astro.url.pathname.replace(/^\/|\/$/g, "") || "index";
-
-function readingOrderKeys(): string[] {
-	const keys = ["index", "about"];
-	const sidebarPath = path.join(process.cwd(), "src/generated/sidebar.json");
-	if (fs.existsSync(sidebarPath)) {
-		const groups = JSON.parse(fs.readFileSync(sidebarPath, "utf8")) as Array<{
-			items?: Array<{ link?: string }>;
-		}>;
-		for (const group of groups) {
-			for (const item of group.items ?? []) {
-				const k = String(item.link ?? "").replace(/^\/|\/$/g, "");
-				if (k) keys.push(k);
-			}
-		}
-	}
-	keys.push("exercises");
-	return keys;
-}
-
-const order = readingOrderKeys();
-const at = order.indexOf(key);
-const next = at >= 0 && at + 1 < order.length ? `/${order[at + 1]}/` : undefined;
 
 const sidecarPath = path.join(process.cwd(), "public/audio", `${key}.json`);
 const hasAudio = fs.existsSync(sidecarPath);

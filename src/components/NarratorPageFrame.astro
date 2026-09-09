@@ -1,12 +1,12 @@
 ---
 // Starlight component override (see astro.config.mjs `components.Footer`).
 // Footer is the documented override point for appending content below the
-// article body — this adds a recall quiz there for book chapter pages,
-// plus mounts the narration player globally. It renders Starlight's own
-// Footer underneath, unchanged.
+// article body — used here only for the recall quiz. The narration player
+// mounts from PageTitle.astro instead (right under the title, above the
+// content), matching zed-rust-for-dummies's split between the two override
+// points. It renders Starlight's own Footer underneath, unchanged.
 import Default from "@astrojs/starlight/components/Footer.astro";
 import RecallQuiz from "./RecallQuiz.astro";
-import Narration from "./Narration.astro";
 
 // Starlight passes the full route data (StarlightRouteData) as Astro.props
 // to every overridable component — see @astrojs/starlight/props.ts and how
@@ -17,6 +17,5 @@ const id = Astro.props.entry?.id ?? "";
 const slug = id.startsWith("book/") ? id.replace(/^book\//, "").replace(/\/$/, "") : null;
 ---
 
-<Narration />
 {slug && <RecallQuiz slug={slug} />}
 <Default {...Astro.props} />

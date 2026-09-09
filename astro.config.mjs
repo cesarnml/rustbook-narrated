@@ -28,7 +28,10 @@ export default defineConfig({
         github: "https://github.com/cesarnml/rustbook-narrated",
       },
       components: {
-        // Injects the narration player + recall quiz below every page's content.
+        // Narration player, right under the title (above content) — matches
+        // zed-rust-for-dummies's own split of these two override points.
+        PageTitle: "./src/components/PageTitle.astro",
+        // Recall quiz, below every page's content.
         Footer: "./src/components/NarratorPageFrame.astro",
       },
       sidebar: [
