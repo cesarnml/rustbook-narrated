@@ -1,6 +1,4 @@
 node_modules/
-narrator/dist/
-narrator/node_modules/
 dist/
 .astro/
 
@@ -11,14 +9,15 @@ src/content/docs/book/
 src/data/quizzes/
 src/generated/
 
-# build outputs copied in by `npm run build-narrator`
-public/narrator.bundle.js
-src/styles/narrator.css
-
 *.log
 .DS_Store
 .docker-home/
 
-# scratch output from narrator/generate-chapter-test.mjs — the published
-# result is narrator/publish-chapter.mjs's copy into public/audio/
-.audio-test/
+# scratch work dir for scripts/narrate.mjs — WAVs + timing files, before
+# ffmpeg encodes them to the mp3s in public/audio/, which ARE committed
+# (that's how the audio reaches Vercel — generation is a local step, not
+# part of the Vercel build).
+.tts/
+
+.vercel
+.env*

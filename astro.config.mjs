@@ -1,6 +1,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import { readFileSync, existsSync } from "node:fs";
+import rehypeTts from "./src/plugins/rehype-tts.mjs";
 
 // scripts/fetch-book.mjs writes this at build/dev time (npm's "prebuild"
 // hook, or "npm run dev"). It never exists in git — see .gitignore — so a
@@ -12,17 +13,22 @@ const bookSidebar = existsSync(sidebarPath)
 
 export default defineConfig({
   site: "https://therustbooknowwithniceaudio.vercel.app",
+  markdown: {
+    // Wraps each sentence in a `<span data-tts="n">`. scripts/narrate.mjs
+    // reads those spans back out of `dist/`, so `astro build` has to run
+    // before audio can be generated. See src/plugins/rehype-tts.mjs.
+    rehypePlugins: [rehypeTts],
+  },
   integrations: [
     starlight({
       title: "The Rust Book, Narrated",
       description:
-        "The Rust Programming Language (Brown CS quizzed edition) with a browser-side Kokoro narrator and hands-on per-chapter exercises.",
+        "The Rust Programming Language (Brown CS quizzed edition) with a pregenerated Kokoro narration track and hands-on per-chapter exercises.",
       social: {
         github: "https://github.com/cesarnml/rustbook-narrated",
       },
-      customCss: ["./src/styles/narrator.css"],
       components: {
-        // Injects the narrator toolbar + recall quiz below every page's content.
+        // Injects the narration player + recall quiz below every page's content.
         Footer: "./src/components/NarratorPageFrame.astro",
       },
       sidebar: [
