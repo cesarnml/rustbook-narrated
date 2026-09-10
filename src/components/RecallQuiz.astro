@@ -123,10 +123,18 @@ const questions = raw
 				contextHtml,
 				program: codeLines(q.prompt?.program ?? ""),
 				doesCompile,
-				// Prefer rustc's own verified line/stdout; fall back to
-				// upstream's authored value if this question predates the
-				// last verify-tracing.mjs run (see that script's header).
-				errorLine: doesCompile ? null : (verified?.line ?? q.answer?.lineNumber ?? null),
+				// doesCompile/stdout have one objectively right answer, so rustc's
+				// verified value wins outright, upstream's only as a fallback for
+				// a question written after the last verify-tracing.mjs run.
+				// lineNumber doesn't: rustc's *primary* diagnostic span isn't
+				// always the pedagogically-intended line — e.g. an NLL borrow
+				// conflict's primary span lands on the second borrow, while
+				// upstream (and the explanation the reader sees) points at
+				// where the first borrow is later used. verify-tracing.mjs's
+				// mismatch log exists to surface exactly this gap for review;
+				// upstream wins here so the clickable-line answer stays
+				// consistent with the prose explaining it.
+				errorLine: doesCompile ? null : (q.answer?.lineNumber ?? verified?.line ?? null),
 				errorMessage: doesCompile ? null : (verified?.message ?? null),
 				stdout: doesCompile ? (verified?.stdout ?? q.answer?.stdout ?? "") : null,
 			};
@@ -460,6 +468,7 @@ const questions = raw
 
 <script>
 	import { getProgress, markQuizStarted, recordAnswer, type QuizAnswerState } from "../scripts/progress";
+	import { escapeHtml } from "../scripts/html-escape";
 
 	interface ChoiceOpt {
 		html: string;
@@ -551,7 +560,7 @@ const questions = raw
 			}
 			if (q.doesCompile) {
 				const textarea = card.querySelector<HTMLTextAreaElement>("[data-stdout-input]")!;
-				if (!textarea.value.trim()) return null;
+				if (!textarea.dataset.touched) return null;
 				const correct = trimTrailingNewline(textarea.value.trim()) === trimTrailingNewline((q.stdout ?? "").trim());
 				return { correct, picked: textarea.value };
 			}
@@ -561,17 +570,6 @@ const questions = raw
 			return { correct: pickedLine === q.errorLine, picked: String(pickedLine) };
 		}
 
-		// Rustc output (errorMessage, stdout) and an upstream-authored short
-		// answer are raw text, not markdown — unlike promptHtml/contextHtml,
-		// which already went through renderQuizMarkdown server-side. Escaped
-		// here, at display time, so grading in `grade()` still compares
-		// against the unescaped original.
-		function escapeHtml(source: string): string {
-			return source
-				.replace(/&/g, "&amp;")
-				.replace(/</g, "&lt;")
-				.replace(/>/g, "&gt;");
-		}
 
 		function feedbackBlock(status: "correct" | "wrong" | "revealed", q: Question) {
 			const label = status === "correct" ? "✓ Correct" : status === "wrong" ? "✗ Not quite" : "Answer";
@@ -667,6 +665,14 @@ const questions = raw
 						if (btn.dataset.compileChoice === "yes") {
 							codeEl.removeAttribute("data-line-pickable");
 							followup.innerHTML = `<textarea class="recall-quiz__text-input" data-stdout-input placeholder="What does it print to stdout?"></textarea>`;
+							// grade() below needs to tell "never touched" apart
+							// from "deliberately left blank" — a program whose
+							// correct stdout is empty is otherwise ungradeable,
+							// since an empty textarea would look identical to an
+							// unanswered one.
+							followup
+								.querySelector<HTMLTextAreaElement>("[data-stdout-input]")!
+								.addEventListener("input", (e) => ((e.target as HTMLElement).dataset.touched = "1"), { once: true });
 						} else {
 							codeEl.setAttribute("data-line-pickable", "");
 							followup.innerHTML = `<p class="recall-quiz__intro" data-picked-line>Click the line in the code above that causes the error.</p>`;

@@ -8,20 +8,12 @@
 import { micromark } from "micromark";
 import { gfm, gfmHtml } from "micromark-extension-gfm";
 
+export { escapeHtml } from "../scripts/html-escape";
+
 export function renderQuizMarkdown(source: string): string {
 	if (!source) return "";
 	return micromark(source, {
 		extensions: [gfm()],
 		htmlExtensions: [gfmHtml()],
 	});
-}
-
-/** Escapes text for use inside HTML, attributes included — for the Tracing code block (not markdown) and any raw rustc output interpolated into the client script's feedback templates. */
-export function escapeHtml(source: string): string {
-	return source
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#39;");
 }

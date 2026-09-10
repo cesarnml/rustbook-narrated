@@ -1,7 +1,7 @@
 {
   "77f9f143-45a6-4f08-bd87-72bc50c00693": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0384]: cannot assign twice to immutable variable `x`"
   },
   "d209784f-cc52-4451-8049-ad204e89d587": {
@@ -14,17 +14,17 @@
   },
   "15b9d091-3b09-49fe-a472-ba6c0f69e4e0": {
     "doesCompile": false,
-    "line": null,
+    "line": 3,
     "message": "error[E0308]: mismatched types"
   },
   "9bcac1a1-d2df-4a51-b399-7fd8a6042cc2": {
     "doesCompile": false,
-    "line": null,
+    "line": 2,
     "message": "error[E0425]: cannot find type `fsize` in this scope"
   },
   "30212501-00d5-4ef6-838f-3df5112ee7ed": {
     "doesCompile": false,
-    "line": null,
+    "line": 3,
     "message": "error[E0308]: mismatched types"
   },
   "4e632a23-24cc-4c29-8935-cf6b62c3764b": {
@@ -33,7 +33,7 @@
   },
   "bbcac2a0-dec8-4b3b-88fd-37880e804259": {
     "doesCompile": false,
-    "line": null,
+    "line": 1,
     "message": "error: expected one of `:`, `@`, or `|`, found `)`"
   },
   "42671602-ada3-4943-aa73-28aebcfe5011": {
@@ -42,7 +42,7 @@
   },
   "4e07358c-b318-49cb-8210-fbed7ed50e23": {
     "doesCompile": false,
-    "line": null,
+    "line": 3,
     "message": "error[E0308]: mismatched types"
   },
   "46a52842-d4eb-4dc9-8885-f31a2f2f59b4": {
@@ -55,17 +55,17 @@
   },
   "c00e3638-861b-4f9e-a55c-bfb67af79280": {
     "doesCompile": false,
-    "line": null,
+    "line": 8,
     "message": "error[E0382]: borrow of moved value: `s`"
   },
   "5080616f-6f4c-43f7-aa3a-8b23f2798937": {
     "doesCompile": false,
-    "line": null,
+    "line": 7,
     "message": "error[E0308]: mismatched types"
   },
   "e9846c5d-1254-4420-9986-dae4af86b9af": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0502]: cannot borrow `s` as mutable because it is also borrowed as immutable"
   },
   "1f48fda5-afc6-440b-a9aa-53dc8d54efaa": {
@@ -74,7 +74,7 @@
   },
   "adcfc154-03bd-470a-bacb-b3cad97cfc7f": {
     "doesCompile": false,
-    "line": null,
+    "line": 5,
     "message": "error[E0502]: cannot borrow `s` as mutable because it is also borrowed as immutable"
   },
   "bba8893d-f59f-492a-b639-ea04a5c8093b": {
@@ -87,12 +87,12 @@
   },
   "f0ec64fa-262f-4819-8379-acad7aaf8be2": {
     "doesCompile": false,
-    "line": null,
+    "line": 14,
     "message": "error[E0382]: borrow of moved value: `rect1`"
   },
   "a506f97d-2b51-4517-bc4d-f69764093c71": {
     "doesCompile": false,
-    "line": null,
+    "line": 5,
     "message": "error[E0434]: can't capture dynamic environment in a fn item"
   },
   "03a0a1ec-8ce6-40f2-b8b7-6dd5402aeb7d": {
@@ -101,12 +101,12 @@
   },
   "be7be598-8a31-4c1a-9171-4ff90f512430": {
     "doesCompile": false,
-    "line": null,
+    "line": 16,
     "message": "error[E0502]: cannot borrow `p.y` as immutable because it is also borrowed as mutable"
   },
   "770f09d3-110d-4505-b41a-2af422198d59": {
     "doesCompile": false,
-    "line": null,
+    "line": 6,
     "message": "error[E0425]: cannot find value `null` in this scope"
   },
   "5b6e4016-c089-4cb3-96a7-ca9f88694488": {
@@ -115,12 +115,12 @@
   },
   "1e4f082c-ffa4-4d33-8726-2dbcd72e1aa2": {
     "doesCompile": false,
-    "line": null,
+    "line": 13,
     "message": "error[E0382]: borrow of partially moved value: `x`"
   },
   "256d0ce2-da89-4b44-94da-177634fc633a": {
     "doesCompile": false,
-    "line": null,
+    "line": 9,
     "message": "error[E0603]: module `bar` is private"
   },
   "5e78e2e4-81dc-42b2-8527-f08b5117982f": {
@@ -133,22 +133,22 @@
   },
   "153b12b3-4fbc-449c-99a6-7a2cd469df0f": {
     "doesCompile": false,
-    "line": null,
+    "line": 12,
     "message": "error[E0616]: field `0` of struct `Point` is private"
   },
   "789dfffc-7556-443d-98ab-5d0a4db5c162": {
     "doesCompile": false,
-    "line": null,
+    "line": 6,
     "message": "error[E0382]: borrow of moved value: `s`"
   },
   "66270f68-3ad6-4e79-8c73-c04d2daf9792": {
     "doesCompile": false,
-    "line": null,
+    "line": 3,
     "message": "error[E0507]: cannot move out of index of `Vec<String>`"
   },
   "5af7c045-95dc-4bd0-9318-7204732e3ed5": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0499]: cannot borrow `v` as mutable more than once at a time"
   },
   "e8da8773-8df2-4279-8c27-b7e9eda1dddd": {
@@ -157,7 +157,7 @@
   },
   "f76aba3c-2e95-428a-9366-93b03264a8b6": {
     "doesCompile": false,
-    "line": null,
+    "line": 6,
     "message": "error[E0502]: cannot borrow `h` as mutable because it is also borrowed as immutable"
   },
   "6028c7f5-b373-475f-ba43-553773c7b3b7": {
@@ -166,17 +166,17 @@
   },
   "0ea46358-f560-4d3e-85d2-a1806eb7c797": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0433]: cannot find type `File` in this scope"
   },
   "40ae0cfe-3567-4d05-b0d9-54d612a2d654": {
     "doesCompile": false,
-    "line": null,
+    "line": 3,
     "message": "error[E0277]: `T` doesn't implement `std::fmt::Display`"
   },
   "694bb2d0-f2e6-4b0b-a3e7-2d9f9e8b3d09": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0592]: duplicate definitions with name `f`"
   },
   "c4adb1a8-ca6a-43c1-ae34-54302f674ece": {
@@ -185,17 +185,17 @@
   },
   "a2a1546b-27bf-47d2-a1bc-86d777573f40": {
     "doesCompile": false,
-    "line": null,
+    "line": 7,
     "message": "error[E0599]: no method named `push_str` found for opaque type `impl std::fmt::Display` in the current scope"
   },
   "77cf924a-ece1-4119-a762-f5f03536b4e1": {
     "doesCompile": false,
-    "line": null,
+    "line": 5,
     "message": "error: lifetime may not live long enough"
   },
   "a055fa7c-89e2-467e-8458-62cbf3ffb8bf": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0502]: cannot borrow `s` as immutable because it is also borrowed as mutable"
   },
   "266d3cb3-de76-4b91-bd13-c3d6cb9e7fd7": {
@@ -216,12 +216,12 @@
   },
   "8282968d-b1d3-42b4-b128-f97b951db4c6": {
     "doesCompile": false,
-    "line": null,
+    "line": 11,
     "message": "error[E0382]: use of moved value: `e`"
   },
   "e127342d-7ad2-4730-b930-774411e1872d": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0594]: cannot assign to data in an `Rc`"
   },
   "3b43eb45-3400-4555-b605-9ae1cde7c80c": {
@@ -242,17 +242,17 @@
   },
   "94934f0f-4db9-48ee-b63e-198ad1a9ffc8": {
     "doesCompile": false,
-    "line": null,
+    "line": 8,
     "message": "error[E0308]: mismatched types"
   },
   "e5ac0c92-4694-4647-bd20-67825fe038b7": {
     "doesCompile": false,
-    "line": null,
+    "line": 5,
     "message": "error[E0597]: `s` does not live long enough"
   },
   "5d60cfc4-6377-48e7-96e4-fe1de0b0904e": {
     "doesCompile": false,
-    "line": null,
+    "line": 6,
     "message": "error[E0605]: non-primitive cast: `&dyn Debug` as `&i32`"
   },
   "214d5183-5a88-4f5e-a54b-09909bd50bf7": {
@@ -265,7 +265,7 @@
   },
   "0b0d90c3-c81b-4b81-9e1b-f8bd58a22c6c": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error: `..` can only be used once per slice pattern"
   },
   "7d50567d-d73c-47d4-922f-480e8d1b7919": {
@@ -278,17 +278,17 @@
   },
   "d3d9197f-8baf-4ec5-9988-282c67636d3c": {
     "doesCompile": false,
-    "line": null,
+    "line": 4,
     "message": "error[E0308]: mismatched types"
   },
   "5c5cb765-a561-459f-8223-9e72e824c5da": {
     "doesCompile": false,
-    "line": null,
+    "line": 6,
     "message": "error[E0277]: the size for values of type `str` cannot be known at compilation time"
   },
   "8c80f9e8-2d95-43cc-9aa4-04d617dd8cb9": {
     "doesCompile": false,
-    "line": null,
+    "line": 10,
     "message": "error[E0382]: use of moved value: `s`"
   }
 }

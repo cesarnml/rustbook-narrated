@@ -67,11 +67,19 @@ function primaryErrorMessage(stderr) {
 }
 
 for (const [i, { file, q }] of questions.entries()) {
-  const src = path.join(workDir, "program.rs");
-  const bin = path.join(workDir, "program.bin");
-  fs.writeFileSync(src, q.prompt.program);
+  // Relative filenames, run with cwd: workDir — rustc's own error spans
+  // echo back whatever path it was invoked with ("--> program.rs:4:3"),
+  // and primaryErrorLine()'s regex is anchored to that literal name. Pass
+  // an absolute path instead and every span reads "--> /tmp/.../program.rs:
+  // 4:3", the regex never matches, and every doesCompile:false result
+  // silently gets `line: null` — caught by code review, not by this
+  // script's own mismatch check (which skips the comparison whenever the
+  // parsed line is null, so it can't flag its own parse failure).
+  const src = "program.rs";
+  const bin = "program.bin";
+  fs.writeFileSync(path.join(workDir, src), q.prompt.program);
   try {
-    fs.unlinkSync(bin);
+    fs.unlinkSync(path.join(workDir, bin));
   } catch {
     /* didn't exist */
   }
@@ -99,7 +107,10 @@ for (const [i, { file, q }] of questions.entries()) {
   if (compiled) {
     let stdout = "";
     try {
-      stdout = execFileSync(bin, [], { cwd: workDir }).toString();
+      // Needs the absolute path to actually exec (a bare relative name only
+      // resolves via PATH, not cwd) — unlike the rustc invocation above,
+      // execution has no reason to prefer the relative form.
+      stdout = execFileSync(path.join(workDir, bin), [], { cwd: workDir }).toString();
     } catch (err) {
       // Compiled but panicked/exited non-zero — still capture what it printed.
       stdout = err.stdout?.toString() ?? "";
