@@ -15,7 +15,8 @@
 // blob (`data-quiz-questions`); all rendering and interaction is client-side
 // — see the <script> below. That keeps question-card markup defined in one
 // place instead of duplicated between SSR output and client state updates.
-import { escapeHtml, renderQuizMarkdown } from "../lib/quiz-markdown";
+import { renderQuizMarkdown } from "../lib/quiz-markdown";
+import { escapeHtml } from "../scripts/html-escape";
 import fs from "node:fs";
 import path from "node:path";
 

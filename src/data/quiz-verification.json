@@ -66,7 +66,8 @@
   "e9846c5d-1254-4420-9986-dae4af86b9af": {
     "doesCompile": false,
     "line": 4,
-    "message": "error[E0502]: cannot borrow `s` as mutable because it is also borrowed as immutable"
+    "message": "error[E0502]: cannot borrow `s` as mutable because it is also borrowed as immutable",
+    "lineDisagreesWithUpstream": true
   },
   "1f48fda5-afc6-440b-a9aa-53dc8d54efaa": {
     "doesCompile": true,
@@ -177,7 +178,8 @@
   "694bb2d0-f2e6-4b0b-a3e7-2d9f9e8b3d09": {
     "doesCompile": false,
     "line": 4,
-    "message": "error[E0592]: duplicate definitions with name `f`"
+    "message": "error[E0592]: duplicate definitions with name `f`",
+    "lineDisagreesWithUpstream": true
   },
   "c4adb1a8-ca6a-43c1-ae34-54302f674ece": {
     "doesCompile": true,
@@ -196,7 +198,8 @@
   "a055fa7c-89e2-467e-8458-62cbf3ffb8bf": {
     "doesCompile": false,
     "line": 4,
-    "message": "error[E0502]: cannot borrow `s` as immutable because it is also borrowed as mutable"
+    "message": "error[E0502]: cannot borrow `s` as immutable because it is also borrowed as mutable",
+    "lineDisagreesWithUpstream": true
   },
   "266d3cb3-de76-4b91-bd13-c3d6cb9e7fd7": {
     "doesCompile": true,
@@ -222,7 +225,8 @@
   "e127342d-7ad2-4730-b930-774411e1872d": {
     "doesCompile": false,
     "line": 4,
-    "message": "error[E0594]: cannot assign to data in an `Rc`"
+    "message": "error[E0594]: cannot assign to data in an `Rc`",
+    "lineDisagreesWithUpstream": true
   },
   "3b43eb45-3400-4555-b605-9ae1cde7c80c": {
     "doesCompile": true,
@@ -248,7 +252,8 @@
   "e5ac0c92-4694-4647-bd20-67825fe038b7": {
     "doesCompile": false,
     "line": 5,
-    "message": "error[E0597]: `s` does not live long enough"
+    "message": "error[E0597]: `s` does not live long enough",
+    "lineDisagreesWithUpstream": true
   },
   "5d60cfc4-6377-48e7-96e4-fe1de0b0904e": {
     "doesCompile": false,
@@ -289,6 +294,7 @@
   "8c80f9e8-2d95-43cc-9aa4-04d617dd8cb9": {
     "doesCompile": false,
     "line": 10,
-    "message": "error[E0382]: use of moved value: `s`"
+    "message": "error[E0382]: use of moved value: `s`",
+    "lineDisagreesWithUpstream": true
   }
 }

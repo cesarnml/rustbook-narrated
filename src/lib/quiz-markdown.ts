@@ -8,8 +8,6 @@
 import { micromark } from "micromark";
 import { gfm, gfmHtml } from "micromark-extension-gfm";
 
-export { escapeHtml } from "../scripts/html-escape";
-
 export function renderQuizMarkdown(source: string): string {
 	if (!source) return "";
 	return micromark(source, {

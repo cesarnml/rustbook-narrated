@@ -133,8 +133,21 @@ for (const [i, { file, q }] of questions.entries()) {
     }
   } else {
     const line = primaryErrorLine(stderr);
+    const lineDisagrees =
+      expectedCompile === false && q.answer.lineNumber !== undefined && line !== null && line !== q.answer.lineNumber;
     results[q.id] = { doesCompile: false, line, message: primaryErrorMessage(stderr) };
-    if (expectedCompile === false && q.answer.lineNumber !== undefined && line !== null && line !== q.answer.lineNumber) {
+    // Persisted on the entry itself, not just logged — RecallQuiz.astro
+    // prefers upstream's lineNumber for exactly this reason (rustc's
+    // *primary* diagnostic span isn't always the pedagogically-intended
+    // line; see its merge logic), but that preference is a judgment call
+    // made by hand for the disagreements found so far, not something this
+    // script itself validates. Console output alone doesn't survive past
+    // this one run — committing the flag does, so a future disagreement
+    // this script wasn't around to explain out loud is still visible to
+    // whoever next reads quiz-verification.json, instead of silently
+    // trusting upstream's line forever.
+    if (lineDisagrees) {
+      results[q.id].lineDisagreesWithUpstream = true;
       lineMismatches++;
       mismatches.push(
         `${file} [${q.id}]: upstream lineNumber=${q.answer.lineNumber}, rustc points at line ${line}`,
