@@ -356,6 +356,8 @@ const minutes = Math.round(duration / 60);
 </style>
 
 <script>
+	import { markAudioDone, markAudioStarted } from "../scripts/progress";
+
 	interface Timing {
 		duration: number;
 		sentences: Array<{ i: number; start: number; end: number }>;
@@ -366,6 +368,10 @@ const minutes = Math.round(duration / 60);
 	function setup(root: HTMLElement) {
 		const key = root.dataset.key!;
 		const next = root.dataset.next || "";
+		// Progress is tracked per book chapter slug (RecallQuiz's own `slug`
+		// prop), not this player's own `key` — see src/scripts/progress.ts.
+		const progressSlug = key.startsWith("book/") ? key.slice("book/".length) : null;
+		let audioDoneMarked = false;
 		const audio = root.querySelector<HTMLAudioElement>(".tts-audio")!;
 		const playButton = root.querySelector<HTMLButtonElement>(".tts-play")!;
 		const rateButton = root.querySelector<HTMLButtonElement>(".tts-rate")!;
@@ -455,6 +461,15 @@ const minutes = Math.round(duration / 60);
 			miniElapsed.textContent = time;
 			miniScrub.setAttribute("aria-valuenow", rounded);
 			highlight(audio.currentTime);
+			if (
+				progressSlug &&
+				!audioDoneMarked &&
+				audio.duration > 0 &&
+				audio.currentTime / audio.duration >= 0.9
+			) {
+				audioDoneMarked = true;
+				markAudioDone(progressSlug);
+			}
 			raf = requestAnimationFrame(tick);
 		}
 
@@ -492,6 +507,7 @@ const minutes = Math.round(duration / 60);
 			mini.dataset.playing = "";
 			cancelAnimationFrame(raf);
 			raf = requestAnimationFrame(tick);
+			if (progressSlug) markAudioStarted(progressSlug);
 		});
 
 		audio.addEventListener("pause", () => {
@@ -505,6 +521,10 @@ const minutes = Math.round(duration / 60);
 		audio.addEventListener("ended", () => {
 			localStorage.removeItem(posKey);
 			spans[active]?.classList.remove("tts-active");
+			if (progressSlug && !audioDoneMarked) {
+				audioDoneMarked = true;
+				markAudioDone(progressSlug);
+			}
 			if (chain.checked && next) {
 				sessionStorage.setItem("tts:autoplay", "1");
 				location.href = next;

@@ -215,7 +215,10 @@ for (const section of sections) {
     }
 
     sidebarItems.push({ label: item.title, link: `/book/${slug}/` });
-    vocabularyChapters.push({ slug, chapterIndex, title: item.title });
+    // hasQuiz travels to the client (via Sidebar.astro) so the sidebar
+    // checkmark logic can tell "no quiz on this page" apart from "quiz on
+    // this page, not yet done" without a separate fetch per page.
+    vocabularyChapters.push({ slug, chapterIndex, title: item.title, hasQuiz: questions.length > 0 });
   }
   if (sidebarItems.length) sidebarOut.push({ label: section.label, items: sidebarItems });
 }

@@ -2,84 +2,889 @@
 // Renders one chapter's recall quiz from the structured question data
 // scripts/fetch-book.mjs extracted from upstream's mdbook-quiz .toml files.
 // This is our own quiz UI (mdbook-quiz itself is an mdbook-only Rust
-// preprocessor and can't run inside Astro) — it consumes the *data*,
-// not upstream's rendering code.
+// preprocessor and can't run inside Astro) — it consumes the *data*, not
+// upstream's rendering code.
+//
+// All three upstream question types are supported: MultipleChoice (single
+// or multi-select — see the shuffle note below), ShortAnswer, and Tracing
+// (predict whether a program compiles, and either which line fails or what
+// it prints). Reveal is ungated — a reader can see the answer at any time,
+// no forced attempt first — and every question is retryable.
+//
+// The server side here only normalizes upstream's data into one flat JSON
+// blob (`data-quiz-questions`); all rendering and interaction is client-side
+// — see the <script> below. That keeps question-card markup defined in one
+// place instead of duplicated between SSR output and client state updates.
+import { escapeHtml, renderQuizMarkdown } from "../lib/quiz-markdown";
+import fs from "node:fs";
+import path from "node:path";
+
 interface Props {
-  slug: string;
+	slug: string;
 }
 const { slug } = Astro.props;
 
-// Static glob so Vite can see every possible quiz file at build time —
-// a template-string dynamic import of a gitignored, generated path isn't
+// Static glob so Vite can see every possible quiz file at build time — a
+// template-string dynamic import of a gitignored, generated path isn't
 // something the bundler can statically discover.
 const quizModules = import.meta.glob("../data/quizzes/*.json", { eager: true });
+const raw = (quizModules[`../data/quizzes/${slug}.json`] as { default: any[] } | undefined)?.default ?? [];
 
-let questions = [];
-{
-  const mod = quizModules[`../data/quizzes/${slug}.json`];
-  const all = mod?.default ?? [];
-  // v1 only renders MultipleChoice — upstream's ShortAnswer/Tracing types
-  // need free-text/code-output grading this simple component doesn't do.
-  questions = all
-    .filter((q) => q.type === "MultipleChoice")
-    .map((q) => {
-      const choices = [...(q.prompt?.distractors ?? [])];
-      const answerIndex = q.prompt?.answerIndex ?? 0;
-      choices.splice(answerIndex, 0, q.answer?.answer ?? "");
-      return { prompt: q.prompt?.prompt ?? "", choices, answer: q.answer?.answer ?? "" };
-    });
+// Committed sidecar from scripts/verify-tracing.mjs — real rustc output for
+// every Tracing question, keyed by upstream's question id. Read
+// defensively (fs, not a static import) so a checkout that hasn't run the
+// verify script yet still builds; Tracing questions just fall back to
+// upstream's own authored answer fields. See that script's header comment
+// for why this can't just live in src/data/quizzes/ itself (gitignored,
+// regenerated every run).
+let verification: Record<string, { doesCompile: boolean; line?: number | null; message?: string; stdout?: string }> = {};
+try {
+	const verificationPath = path.join(process.cwd(), "src/data/quiz-verification.json");
+	if (fs.existsSync(verificationPath)) {
+		verification = JSON.parse(fs.readFileSync(verificationPath, "utf8"));
+	}
+} catch {
+	verification = {};
 }
+
+/** Deterministic per-question shuffle (mulberry32 seeded from the id) — stable across reloads, but not biased toward any position the way a fixed answerIndex/distractors order would be. */
+function shuffle<T>(items: T[], seed: string): T[] {
+	let h = 0;
+	for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+	const rand = () => {
+		h = (h + 0x6d2b79f5) | 0;
+		let t = Math.imul(h ^ (h >>> 15), 1 | h);
+		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+	const out = items.slice();
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(rand() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
+	}
+	return out;
+}
+
+function codeLines(program: string) {
+	return program
+		.replace(/\n$/, "")
+		.split("\n")
+		.map((line, i) => ({ n: i + 1, html: escapeHtml(line) || " " }));
+}
+
+const questions = raw
+	.map((q) => {
+		const contextHtml = renderQuizMarkdown(q.context ?? "");
+		if (q.type === "MultipleChoice") {
+			// Upstream's authored order for a single correct answer is a fixed
+			// `answerIndex` into `distractors` — but ~2/3 of single-answer
+			// questions in this dataset omit it entirely, which the old code
+			// silently defaulted to 0 (always inserting the correct choice
+			// first). A multi-answer question has no answerIndex at all —
+			// `answer.answer` is just the array of correct choice strings, on
+			// top of `distractors`. One path handles both: build the full
+			// choice set and shuffle it, rather than trusting position.
+			const correctAnswers: string[] = Array.isArray(q.answer?.answer) ? q.answer.answer : [q.answer?.answer ?? ""];
+			const distractors: string[] = q.prompt?.distractors ?? [];
+			const choices = shuffle(
+				[...distractors, ...correctAnswers].map((text) => ({
+					html: renderQuizMarkdown(text),
+					correct: correctAnswers.includes(text),
+				})),
+				q.id,
+			);
+			return {
+				id: q.id,
+				type: "MultipleChoice" as const,
+				promptHtml: renderQuizMarkdown(q.prompt?.prompt ?? ""),
+				contextHtml,
+				choices,
+				multi: correctAnswers.length > 1,
+			};
+		}
+		if (q.type === "ShortAnswer") {
+			const accepted = [q.answer?.answer ?? "", ...(q.answer?.alternatives ?? [])]
+				.map((s) => String(s).trim().replace(/\s+/g, " "))
+				.filter(Boolean);
+			return {
+				id: q.id,
+				type: "ShortAnswer" as const,
+				promptHtml: renderQuizMarkdown(q.prompt?.prompt ?? ""),
+				contextHtml,
+				accepted,
+			};
+		}
+		if (q.type === "Tracing") {
+			const verified = verification[q.id];
+			const doesCompile = verified ? verified.doesCompile : Boolean(q.answer?.doesCompile);
+			return {
+				id: q.id,
+				type: "Tracing" as const,
+				contextHtml,
+				program: codeLines(q.prompt?.program ?? ""),
+				doesCompile,
+				// Prefer rustc's own verified line/stdout; fall back to
+				// upstream's authored value if this question predates the
+				// last verify-tracing.mjs run (see that script's header).
+				errorLine: doesCompile ? null : (verified?.line ?? q.answer?.lineNumber ?? null),
+				errorMessage: doesCompile ? null : (verified?.message ?? null),
+				stdout: doesCompile ? (verified?.stdout ?? q.answer?.stdout ?? "") : null,
+			};
+		}
+		return null;
+	})
+	.filter((q): q is NonNullable<typeof q> => q !== null);
 ---
 
 {
-  questions.length > 0 && (
-    <section class="recall-quiz" data-recall-quiz>
-      <h2>Quick recall check</h2>
-      <p>Answer before moving on — these mirror the book's own comprehension quizzes.</p>
-      {questions.map((q, qi) => (
-        <fieldset class="recall-quiz__question" data-question data-answer={JSON.stringify(q.answer)}>
-          <legend set:html={q.prompt} />
-          <ul>
-            {q.choices.map((choice) => (
-              <li>
-                <label>
-                  <input type="radio" name={`${slug}-q${qi}`} value={choice} />
-                  <span set:html={choice} />
-                </label>
-              </li>
-            ))}
-          </ul>
-          <p class="recall-quiz__feedback" hidden></p>
-        </fieldset>
-      ))}
-      <button type="button" data-check-quiz>Check answers</button>
-    </section>
-  )
+	questions.length > 0 && (
+		<section class="recall-quiz not-content" data-recall-quiz data-slug={slug}>
+			<h2>Quick recall check</h2>
+			<p class="recall-quiz__intro">
+				{questions.length} question{questions.length === 1 ? "" : "s"} on this chapter — answer them or reveal the
+				answer any time, at your own pace.
+			</p>
+			<div class="recall-quiz__strip" data-quiz-strip hidden></div>
+			<div class="recall-quiz__stage" data-quiz-stage></div>
+			<script type="application/json" data-quiz-questions set:html={JSON.stringify(questions)} />
+			<noscript>
+				<p>This quiz needs JavaScript enabled to run.</p>
+			</noscript>
+		</section>
+	)
 }
 
+<style>
+	/* Token choices mirror Narration.astro's player on purpose, so the audio
+	   control up top and this quiz at the bottom read as one system. Starlight
+	   doesn't ship a warning/amber token of its own, so this defines the one
+	   custom property this feature needs — global (:root), so Sidebar.astro's
+	   progress badge can share it too, and set once whether it's needed for
+	   dark or light mode (the same amber reads fine on both here). */
+	:global(:root) {
+		--pc-color-warn: #d97706;
+	}
+
+	.recall-quiz {
+		margin-block: 2.5rem 1rem;
+	}
+	.recall-quiz h2 {
+		margin-bottom: 0.35rem;
+	}
+	.recall-quiz__intro {
+		margin-top: 0;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+
+	.recall-quiz__strip {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		margin-bottom: 1rem;
+	}
+	.recall-quiz__row {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.6rem;
+		background: var(--sl-color-black);
+		cursor: pointer;
+		text-align: left;
+		font: inherit;
+		color: inherit;
+		width: 100%;
+	}
+	.recall-quiz__row:hover {
+		border-color: var(--sl-color-gray-4);
+	}
+	.recall-quiz__row[data-active] {
+		border-color: var(--sl-color-text-accent);
+	}
+	.recall-quiz__row-badge {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 1.4rem;
+		height: 1.4rem;
+		border-radius: 50%;
+		font-size: 0.75rem;
+		line-height: 1;
+	}
+	.recall-quiz__row-text {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-2);
+	}
+
+	.recall-quiz__stage {
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.6rem;
+		background: var(--sl-color-black);
+		padding: 1rem 1.1rem 1.1rem;
+	}
+
+	.recall-quiz__meta {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-bottom: 0.75rem;
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+	}
+	.recall-quiz__dots {
+		display: flex;
+		gap: 0.3rem;
+	}
+	.recall-quiz__dot {
+		width: 0.4rem;
+		height: 0.4rem;
+		border-radius: 50%;
+		background: var(--sl-color-gray-5);
+	}
+	.recall-quiz__dot[data-done] {
+		background: var(--sl-color-text-accent);
+	}
+
+	.recall-quiz__prompt :global(p:first-child) {
+		margin-top: 0;
+	}
+	.recall-quiz__prompt :global(pre) {
+		padding: 0.75rem;
+		border-radius: 0.4rem;
+		background: var(--sl-color-gray-6);
+		overflow-x: auto;
+	}
+	.recall-quiz__prompt :global(code) {
+		font-family: var(--__sl-font-mono, monospace);
+	}
+
+	fieldset.recall-quiz__choices {
+		border: 0;
+		margin: 0.75rem 0;
+		padding: 0;
+	}
+	.recall-quiz__choice {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		padding: 0.5rem 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		margin-bottom: 0.4rem;
+		cursor: pointer;
+	}
+	.recall-quiz__choice:hover {
+		border-color: var(--sl-color-gray-4);
+	}
+	.recall-quiz__choice input {
+		margin-top: 0.2rem;
+		accent-color: var(--sl-color-text-accent);
+		flex: none;
+	}
+	.recall-quiz__choice-text :global(p) {
+		margin: 0;
+	}
+	.recall-quiz__choice-text :global(pre) {
+		margin: 0.35rem 0 0;
+	}
+	.recall-quiz__choice[data-correct] {
+		border-color: var(--sl-color-text-accent);
+	}
+	.recall-quiz__choice[data-incorrect-pick] {
+		border-color: var(--pc-color-warn);
+	}
+
+	.recall-quiz__text-input {
+		width: 100%;
+		box-sizing: border-box;
+		margin: 0.75rem 0;
+		padding: 0.5rem 0.6rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		background: var(--sl-color-bg, transparent);
+		color: inherit;
+		font: inherit;
+	}
+	.recall-quiz__text-input:focus {
+		outline: 2px solid var(--sl-color-text-accent);
+		outline-offset: 1px;
+	}
+	textarea.recall-quiz__text-input {
+		min-height: 4.5rem;
+		resize: vertical;
+		font-family: var(--__sl-font-mono, monospace);
+	}
+
+	.recall-quiz__code {
+		margin: 0.75rem 0;
+		border-radius: 0.45rem;
+		background: var(--sl-color-gray-6);
+		overflow-x: auto;
+		font-family: var(--__sl-font-mono, monospace);
+		font-size: var(--sl-text-sm);
+	}
+	.recall-quiz__line {
+		display: flex;
+		padding-inline: 0.5rem;
+	}
+	.recall-quiz__line-no {
+		flex: none;
+		width: 2rem;
+		text-align: right;
+		margin-right: 0.75rem;
+		padding-block: 0.1rem;
+		color: var(--sl-color-gray-3);
+		user-select: none;
+	}
+	.recall-quiz__line-code {
+		white-space: pre;
+		padding-block: 0.1rem;
+	}
+	.recall-quiz__code[data-line-pickable] .recall-quiz__line {
+		cursor: pointer;
+		border-radius: 0.25rem;
+	}
+	.recall-quiz__code[data-line-pickable] .recall-quiz__line:hover {
+		background: color-mix(in srgb, var(--sl-color-text-accent) 12%, transparent);
+	}
+	.recall-quiz__line[data-picked] {
+		background: color-mix(in srgb, var(--sl-color-text-accent) 22%, transparent);
+	}
+	.recall-quiz__line[data-picked] .recall-quiz__line-no {
+		color: var(--sl-color-text-accent);
+	}
+	.recall-quiz__line[data-actual-line] {
+		box-shadow: inset 2px 0 0 var(--sl-color-text-accent);
+	}
+
+	.recall-quiz__compile-choice {
+		display: flex;
+		gap: 0.5rem;
+		margin: 0.75rem 0;
+	}
+	.recall-quiz__compile-choice button {
+		flex: 1;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		cursor: pointer;
+	}
+	.recall-quiz__compile-choice button:hover {
+		border-color: var(--sl-color-gray-4);
+	}
+	.recall-quiz__compile-choice button[data-picked] {
+		border-color: var(--sl-color-text-accent);
+		background: color-mix(in srgb, var(--sl-color-text-accent) 12%, transparent);
+	}
+
+	.recall-quiz__actions {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		margin-top: 0.85rem;
+	}
+	.recall-quiz__actions button {
+		border: 0;
+		border-radius: 999px;
+		padding: 0.45rem 1.1rem;
+		font: inherit;
+		font-size: var(--sl-text-sm);
+		cursor: pointer;
+	}
+	.recall-quiz__check {
+		color: var(--sl-color-black);
+		background: var(--sl-color-text-accent);
+	}
+	.recall-quiz__check:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+	.recall-quiz__reveal,
+	.recall-quiz__next {
+		color: var(--sl-color-gray-2);
+		background: var(--sl-color-gray-6);
+	}
+	.recall-quiz__reveal:hover,
+	.recall-quiz__next:hover {
+		color: var(--sl-color-text-accent);
+	}
+
+	.recall-quiz__feedback {
+		margin-top: 0.85rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--sl-color-gray-5);
+		font-size: var(--sl-text-sm);
+	}
+	.recall-quiz__feedback-status {
+		font-weight: 600;
+		margin-bottom: 0.35rem;
+	}
+	.recall-quiz__feedback[data-status="correct"] .recall-quiz__feedback-status {
+		color: var(--sl-color-text-accent);
+	}
+	.recall-quiz__feedback[data-status="wrong"] .recall-quiz__feedback-status {
+		color: var(--pc-color-warn);
+	}
+	.recall-quiz__feedback[data-status="revealed"] .recall-quiz__feedback-status {
+		color: var(--sl-color-gray-2);
+	}
+	.recall-quiz__feedback :global(p:last-child) {
+		margin-bottom: 0;
+	}
+
+	.recall-quiz__summary {
+		text-align: center;
+		padding: 0.5rem 0 0.25rem;
+	}
+	.recall-quiz__summary-score {
+		font-size: var(--sl-text-h3);
+		margin: 0 0 0.35rem;
+	}
+	.recall-quiz__summary-note {
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+		margin: 0;
+	}
+</style>
+
 <script>
-  // No framework needed — this is intentionally the simplest possible
-  // client-side check: compare selected radio value(s) to the recorded
-  // answer and toggle a feedback line per question.
-  document.querySelectorAll("[data-check-quiz]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const section = btn.closest("[data-recall-quiz]");
-      section?.querySelectorAll("[data-question]").forEach((fs) => {
-        const expected = JSON.parse(fs.getAttribute("data-answer") || "null");
-        const picked = fs.querySelector("input:checked");
-        const feedback = fs.querySelector(".recall-quiz__feedback");
-        if (!feedback) return;
-        feedback.hidden = false;
-        if (!picked) {
-          feedback.textContent = "Pick an answer first.";
-        } else if (Array.isArray(expected) ? expected.includes(picked.value) : picked.value === expected) {
-          feedback.textContent = "✓ correct";
-          feedback.className = "recall-quiz__feedback recall-quiz__feedback--correct";
-        } else {
-          feedback.textContent = "✗ not quite — reread the section above before continuing";
-          feedback.className = "recall-quiz__feedback recall-quiz__feedback--wrong";
-        }
-      });
-    });
-  });
+	import { getProgress, markQuizStarted, recordAnswer, type QuizAnswerState } from "../scripts/progress";
+
+	interface ChoiceOpt {
+		html: string;
+		correct: boolean;
+	}
+	interface MCQuestion {
+		id: string;
+		type: "MultipleChoice";
+		promptHtml: string;
+		contextHtml: string;
+		choices: ChoiceOpt[];
+		multi: boolean;
+	}
+	interface SAQuestion {
+		id: string;
+		type: "ShortAnswer";
+		promptHtml: string;
+		contextHtml: string;
+		accepted: string[];
+	}
+	interface TracingQuestion {
+		id: string;
+		type: "Tracing";
+		contextHtml: string;
+		program: Array<{ n: number; html: string }>;
+		doesCompile: boolean;
+		errorLine: number | null;
+		errorMessage: string | null;
+		stdout: string | null;
+	}
+	type Question = MCQuestion | SAQuestion | TracingQuestion;
+
+	function setup(section: HTMLElement) {
+		const slug = section.dataset.slug!;
+		const dataEl = section.querySelector<HTMLScriptElement>("[data-quiz-questions]")!;
+		const questions: Question[] = JSON.parse(dataEl.textContent || "[]");
+		const strip = section.querySelector<HTMLElement>("[data-quiz-strip]")!;
+		const stage = section.querySelector<HTMLElement>("[data-quiz-stage]")!;
+
+		let answers: Record<string, QuizAnswerState> = getProgress(slug).answers ?? {};
+		let activeId: string | null = null;
+
+		const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
+		const trimTrailingNewline = (s: string) => s.replace(/\n+$/, "");
+
+		function firstUnanswered(): string | null {
+			const q = questions.find((q) => !answers[q.id]);
+			return q ? q.id : null;
+		}
+
+		function withScrollAnchor(mutate: () => void) {
+			const before = section.getBoundingClientRect().top;
+			mutate();
+			const after = section.getBoundingClientRect().top;
+			if (after !== before) window.scrollBy(0, after - before);
+		}
+
+		function persist(id: string, state: QuizAnswerState) {
+			answers[id] = state;
+			recordAnswer(slug, id, state, questions.length);
+		}
+
+		function grade(q: Question, card: HTMLElement): { correct: boolean; picked: string | string[] } | null {
+			if (q.type === "MultipleChoice") {
+				const inputs = Array.from(card.querySelectorAll<HTMLInputElement>("input[name=choice]:checked"));
+				if (inputs.length === 0) return null;
+				const pickedIdx = inputs.map((i) => Number(i.value));
+				const correctIdx = q.choices.map((c, i) => (c.correct ? i : -1)).filter((i) => i >= 0);
+				const correct =
+					pickedIdx.length === correctIdx.length && pickedIdx.every((i) => correctIdx.includes(i));
+				return { correct, picked: pickedIdx.map(String) };
+			}
+			if (q.type === "ShortAnswer") {
+				const input = card.querySelector<HTMLInputElement>("input[data-answer]")!;
+				const value = input.value.trim();
+				if (!value) return null;
+				const correct = q.accepted.includes(normalize(value));
+				return { correct, picked: value };
+			}
+			// Tracing
+			const compileBtn = card.querySelector<HTMLButtonElement>("[data-compile-choice][data-picked]");
+			if (!compileBtn) return null;
+			const pickedCompile = compileBtn.dataset.compileChoice === "yes";
+			if (pickedCompile !== q.doesCompile) {
+				const picked = pickedCompile
+					? (card.querySelector<HTMLTextAreaElement>("[data-stdout-input]")?.value ?? "")
+					: (card.querySelector<HTMLElement>("[data-picked-line]")?.dataset.pickedLine ?? "");
+				return { correct: false, picked };
+			}
+			if (q.doesCompile) {
+				const textarea = card.querySelector<HTMLTextAreaElement>("[data-stdout-input]")!;
+				if (!textarea.value.trim()) return null;
+				const correct = trimTrailingNewline(textarea.value.trim()) === trimTrailingNewline((q.stdout ?? "").trim());
+				return { correct, picked: textarea.value };
+			}
+			const pickedLineEl = card.querySelector<HTMLElement>(".recall-quiz__line[data-picked]");
+			if (!pickedLineEl) return null;
+			const pickedLine = Number(pickedLineEl.dataset.line);
+			return { correct: pickedLine === q.errorLine, picked: String(pickedLine) };
+		}
+
+		// Rustc output (errorMessage, stdout) and an upstream-authored short
+		// answer are raw text, not markdown — unlike promptHtml/contextHtml,
+		// which already went through renderQuizMarkdown server-side. Escaped
+		// here, at display time, so grading in `grade()` still compares
+		// against the unescaped original.
+		function escapeHtml(source: string): string {
+			return source
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;");
+		}
+
+		function feedbackBlock(status: "correct" | "wrong" | "revealed", q: Question) {
+			const label = status === "correct" ? "✓ Correct" : status === "wrong" ? "✗ Not quite" : "Answer";
+			let extra = "";
+			if (q.type === "Tracing") {
+				extra = q.doesCompile
+					? `<p><strong>Prints:</strong> <code>${q.stdout ? escapeHtml(q.stdout) : "(nothing)"}</code></p>`
+					: `<p><strong>Fails to compile</strong>${q.errorLine ? ` at line ${q.errorLine}` : ""}${q.errorMessage ? `: <code>${escapeHtml(q.errorMessage)}</code>` : ""}</p>`;
+			} else if (q.type === "ShortAnswer") {
+				extra = `<p><strong>Accepted answer:</strong> <code>${escapeHtml(q.accepted[0] ?? "")}</code></p>`;
+			}
+			return `<div class="recall-quiz__feedback" data-status="${status}">
+				<p class="recall-quiz__feedback-status">${label}</p>
+				${extra}
+				${q.contextHtml}
+			</div>`;
+		}
+
+		function applyFeedback(card: HTMLElement, q: Question, status: "correct" | "wrong" | "revealed") {
+			const existing = card.querySelector(".recall-quiz__feedback");
+			existing?.remove();
+			card.insertAdjacentHTML("beforeend", feedbackBlock(status, q));
+			if (q.type === "MultipleChoice") {
+				card.querySelectorAll<HTMLElement>(".recall-quiz__choice").forEach((el, i) => {
+					const input = el.querySelector<HTMLInputElement>("input")!;
+					input.disabled = false; // stays editable — retry is allowed
+					if (q.choices[i]!.correct) el.setAttribute("data-correct", "");
+					else if (input.checked) el.setAttribute("data-incorrect-pick", "");
+					else {
+						el.removeAttribute("data-correct");
+						el.removeAttribute("data-incorrect-pick");
+					}
+				});
+			}
+			if (q.type === "Tracing" && !q.doesCompile && q.errorLine) {
+				card.querySelector(`.recall-quiz__line[data-line="${q.errorLine}"]`)?.setAttribute("data-actual-line", "");
+			}
+		}
+
+		function renderChoiceCard(q: MCQuestion): HTMLElement {
+			const card = document.createElement("div");
+			card.innerHTML = `
+				<div class="recall-quiz__prompt">${q.promptHtml}</div>
+				<fieldset class="recall-quiz__choices">
+					<legend class="sr-only">Choose ${q.multi ? "all that apply" : "one"}</legend>
+					${q.choices
+						.map(
+							(c, i) => `
+						<label class="recall-quiz__choice">
+							<input type="${q.multi ? "checkbox" : "radio"}" name="choice" value="${i}" />
+							<span class="recall-quiz__choice-text">${c.html}</span>
+						</label>`,
+						)
+						.join("")}
+				</fieldset>
+			`;
+			return card;
+		}
+
+		function renderShortAnswerCard(q: SAQuestion): HTMLElement {
+			const card = document.createElement("div");
+			card.innerHTML = `
+				<div class="recall-quiz__prompt">${q.promptHtml}</div>
+				<input type="text" class="recall-quiz__text-input" data-answer placeholder="Type your answer" autocomplete="off" />
+			`;
+			return card;
+		}
+
+		function renderTracingCard(q: TracingQuestion): HTMLElement {
+			const card = document.createElement("div");
+			card.innerHTML = `
+				<div class="recall-quiz__prompt"><p>Does this program compile?</p></div>
+				<pre class="recall-quiz__code" data-code><code>${q.program
+					.map(
+						(l) =>
+							`<div class="recall-quiz__line" data-line="${l.n}"><span class="recall-quiz__line-no">${l.n}</span><span class="recall-quiz__line-code">${l.html}</span></div>`,
+					)
+					.join("")}</code></pre>
+				<div class="recall-quiz__compile-choice">
+					<button type="button" data-compile-choice="yes">Yes, it compiles</button>
+					<button type="button" data-compile-choice="no">No, it fails to compile</button>
+				</div>
+				<div data-compile-followup></div>
+			`;
+			const codeEl = card.querySelector<HTMLElement>("[data-code]")!;
+			const followup = card.querySelector<HTMLElement>("[data-compile-followup]")!;
+			card.querySelectorAll<HTMLButtonElement>("[data-compile-choice]").forEach((btn) => {
+				btn.addEventListener("click", () => {
+					withScrollAnchor(() => {
+						card.querySelectorAll("[data-compile-choice]").forEach((b) => b.removeAttribute("data-picked"));
+						btn.setAttribute("data-picked", "");
+						onInteract();
+						if (btn.dataset.compileChoice === "yes") {
+							codeEl.removeAttribute("data-line-pickable");
+							followup.innerHTML = `<textarea class="recall-quiz__text-input" data-stdout-input placeholder="What does it print to stdout?"></textarea>`;
+						} else {
+							codeEl.setAttribute("data-line-pickable", "");
+							followup.innerHTML = `<p class="recall-quiz__intro" data-picked-line>Click the line in the code above that causes the error.</p>`;
+							codeEl.querySelectorAll<HTMLElement>(".recall-quiz__line").forEach((lineEl) => {
+								lineEl.addEventListener("click", () => {
+									codeEl.querySelectorAll(".recall-quiz__line").forEach((l) => l.removeAttribute("data-picked"));
+									lineEl.setAttribute("data-picked", "");
+									followup.querySelector("[data-picked-line]")?.setAttribute("data-picked-line", lineEl.dataset.line || "");
+									updateCheckEnabled();
+								});
+							});
+						}
+						updateCheckEnabled();
+					});
+				});
+			});
+			return card;
+		}
+
+		let updateCheckEnabled = () => {};
+
+		/** Re-selects whatever the reader previously picked, so reopening a completed question from the strip shows their actual answer instead of a blank form. */
+		function restorePrior(card: HTMLElement, q: Question, prior: QuizAnswerState) {
+			if (q.type === "MultipleChoice") {
+				const picked = Array.isArray(prior.value) ? prior.value : [prior.value];
+				card.querySelectorAll<HTMLInputElement>('input[name="choice"]').forEach((input) => {
+					input.checked = picked.includes(input.value);
+				});
+			} else if (q.type === "ShortAnswer") {
+				const input = card.querySelector<HTMLInputElement>("input[data-answer]");
+				if (input && typeof prior.value === "string") input.value = prior.value;
+			} else if (q.type === "Tracing" && typeof prior.value === "string") {
+				// Best-effort: restores the branch that was actually correct for
+				// this program. If the reader had guessed the *other* branch
+				// (compiles vs. not) that specific wrong click isn't retained —
+				// only the text/line they entered under it — so this shows the
+				// right branch pre-filled with their value. The graded status
+				// (still "wrong" in that case) and the explanation below it are
+				// what carry the accurate feedback either way.
+				const btn = card.querySelector<HTMLButtonElement>(`[data-compile-choice="${q.doesCompile ? "yes" : "no"}"]`);
+				btn?.click();
+				if (q.doesCompile) {
+					const textarea = card.querySelector<HTMLTextAreaElement>("[data-stdout-input]");
+					if (textarea) textarea.value = prior.value;
+				} else {
+					const lineEl = card.querySelector<HTMLElement>(`.recall-quiz__line[data-line="${prior.value}"]`);
+					lineEl?.click();
+				}
+			}
+		}
+
+		function renderActive() {
+			const id = activeId ?? firstUnanswered();
+			if (!id) {
+				renderSummary();
+				return;
+			}
+			activeId = id;
+			const q = questions.find((q) => q.id === id)!;
+			const index = questions.indexOf(q);
+			const prior = answers[id];
+
+			const body =
+				q.type === "MultipleChoice"
+					? renderChoiceCard(q)
+					: q.type === "ShortAnswer"
+						? renderShortAnswerCard(q)
+						: renderTracingCard(q);
+
+			const card = document.createElement("div");
+			card.className = "recall-quiz__card";
+			card.innerHTML = `
+				<div class="recall-quiz__meta">
+					<span>Question ${index + 1} of ${questions.length}</span>
+					<span class="recall-quiz__dots">${questions.map((qq) => `<span class="recall-quiz__dot" ${answers[qq.id] ? "data-done" : ""}></span>`).join("")}</span>
+				</div>
+			`;
+			card.appendChild(body);
+			const actions = document.createElement("div");
+			actions.className = "recall-quiz__actions";
+			actions.innerHTML = `
+				<button type="button" class="recall-quiz__check" data-check disabled>Check answer</button>
+				<button type="button" class="recall-quiz__reveal" data-reveal>Reveal answer</button>
+			`;
+			card.appendChild(actions);
+
+			stage.replaceChildren(card);
+
+			const checkBtn = card.querySelector<HTMLButtonElement>("[data-check]")!;
+			const revealBtn = card.querySelector<HTMLButtonElement>("[data-reveal]")!;
+
+			updateCheckEnabled = () => {
+				// Always gated on whether the current input is gradeable — not on
+				// whether this question already has a prior answer, which would
+				// otherwise leave the button permanently enabled after reopening
+				// a completed question from the strip (see `finish` below, which
+				// re-disables it once for the restored prior answer).
+				checkBtn.disabled = grade(q, card) === null;
+			};
+			onInteractInternal(card, updateCheckEnabled);
+			updateCheckEnabled();
+
+			function finish(status: "correct" | "wrong" | "revealed", picked: string | string[] = "") {
+				applyFeedback(card, q, status);
+				persist(id!, { status, value: picked });
+				checkBtn.disabled = true;
+				revealBtn.disabled = status !== "wrong";
+				if (!actions.querySelector("[data-next]")) {
+					const next = document.createElement("button");
+					next.type = "button";
+					next.className = "recall-quiz__next";
+					next.dataset.next = "";
+					next.textContent = index === questions.length - 1 ? "See results" : "Next question →";
+					next.addEventListener("click", () => {
+						activeId = null;
+						withScrollAnchor(() => renderActive());
+					});
+					actions.appendChild(next);
+				}
+				renderStrip();
+			}
+
+			checkBtn.addEventListener("click", () => {
+				const result = grade(q, card);
+				if (!result) return;
+				finish(result.correct ? "correct" : "wrong", result.picked);
+			});
+			revealBtn.addEventListener("click", () => finish("revealed"));
+
+			if (prior) {
+				restorePrior(card, q, prior);
+				finish(prior.status, prior.value ?? "");
+			}
+		}
+
+		function onInteract() {
+			markQuizStarted(slug);
+		}
+
+		function onInteractInternal(card: HTMLElement, refresh: () => void) {
+			card.addEventListener("input", () => {
+				onInteract();
+				refresh();
+			});
+			card.addEventListener("change", () => {
+				onInteract();
+				refresh();
+			});
+		}
+
+		function renderStrip() {
+			const answered = questions.filter((q) => answers[q.id]);
+			if (answered.length === 0) {
+				strip.hidden = true;
+				strip.replaceChildren();
+				return;
+			}
+			strip.hidden = false;
+			strip.replaceChildren(
+				...answered.map((q) => {
+					const state = answers[q.id]!;
+					const row = document.createElement("button");
+					row.type = "button";
+					row.className = "recall-quiz__row";
+					if (q.id === activeId) row.setAttribute("data-active", "");
+					const badgeChar = state.status === "correct" ? "✓" : state.status === "wrong" ? "✗" : "•";
+					const badgeColor =
+						state.status === "correct"
+							? "var(--sl-color-text-accent)"
+							: state.status === "wrong"
+								? "var(--pc-color-warn)"
+								: "var(--sl-color-gray-3)";
+					// Tags -> space (not empty) so "...like this:" and the code
+					// fence right after it don't glue into one word; collapse
+					// the code block's real newlines the same way. HTML
+					// entities from renderQuizMarkdown (e.g. `&lt;`) are left
+					// as-is — row.innerHTML below re-parses them correctly.
+					const plainTextOf = (html: string) => {
+						const flat = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+						return flat.length > 80 ? `${flat.slice(0, 77)}…` : flat;
+					};
+					const text =
+						q.type === "MultipleChoice" || q.type === "ShortAnswer"
+							? plainTextOf(q.promptHtml)
+							: "Tracing: does it compile?";
+					row.innerHTML = `<span class="recall-quiz__row-badge" style="background:color-mix(in srgb, ${badgeColor} 20%, transparent); color:${badgeColor}">${badgeChar}</span><span class="recall-quiz__row-text">${text}</span>`;
+					row.addEventListener("click", () => {
+						activeId = q.id;
+						withScrollAnchor(() => renderActive());
+					});
+					return row;
+				}),
+			);
+		}
+
+		function renderSummary() {
+			const correct = questions.filter((q) => answers[q.id]?.status === "correct").length;
+			stage.innerHTML = `
+				<div class="recall-quiz__summary">
+					<p class="recall-quiz__summary-score">${correct} / ${questions.length} correct</p>
+					<p class="recall-quiz__summary-note">Quiz complete — revisit any question below to try again.</p>
+				</div>
+			`;
+			renderStrip();
+		}
+
+		renderActive();
+		renderStrip();
+	}
+
+	function mount() {
+		document.querySelectorAll<HTMLElement>("[data-recall-quiz]").forEach((section) => {
+			if (section.dataset.ready) return;
+			section.dataset.ready = "1";
+			setup(section);
+		});
+	}
+
+	mount();
+	document.addEventListener("astro:page-load", mount);
 </script>

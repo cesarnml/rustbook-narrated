@@ -1,0 +1,89 @@
+---
+// Starlight component override (see astro.config.mjs `components.Sidebar`).
+// Renders Starlight's own sidebar unchanged, then paints a small
+// green/yellow progress badge next to each book chapter link, read from
+// the per-chapter localStorage state in src/scripts/progress.ts.
+//
+// Which chapters have a quiz (green needs "quiz done"; chapters with no
+// quiz go green on "audio done" instead — see progress.ts `statusFor`) is
+// a build-time fact from scripts/fetch-book.mjs's chapters.json, inlined
+// here as a JSON blob so the client script needs no extra fetch.
+import Default from "@astrojs/starlight/components/Sidebar.astro";
+import fs from "node:fs";
+import path from "node:path";
+
+let chapters: Array<{ slug: string; hasQuiz: boolean }> = [];
+try {
+	const chaptersPath = path.join(process.cwd(), "src/generated/chapters.json");
+	if (fs.existsSync(chaptersPath)) {
+		chapters = JSON.parse(fs.readFileSync(chaptersPath, "utf8")).chapters ?? [];
+	}
+} catch {
+	chapters = [];
+}
+---
+
+<Default {...Astro.props} />
+<script type="application/json" data-progress-chapters set:html={JSON.stringify(chapters)} />
+
+<style is:global>
+	.pc-progress-badge {
+		flex: none;
+		display: inline-grid;
+		place-items: center;
+		width: 0.85rem;
+		height: 0.85rem;
+		border-radius: 50%;
+		margin-inline-start: 0.4rem;
+	}
+	.pc-progress-badge[data-status="done"] {
+		background: var(--sl-color-text-accent);
+	}
+	.pc-progress-badge[data-status="started"] {
+		background: var(--pc-color-warn);
+	}
+</style>
+
+<script>
+	import { onProgressChanged, statusFor } from "../scripts/progress";
+
+	interface Chapter {
+		slug: string;
+		hasQuiz: boolean;
+	}
+
+	function chapters(): Chapter[] {
+		const el = document.querySelector<HTMLScriptElement>("[data-progress-chapters]");
+		try {
+			return el ? JSON.parse(el.textContent || "[]") : [];
+		} catch {
+			return [];
+		}
+	}
+
+	function paint() {
+		const bySlug = new Map(chapters().map((c) => [c.slug, c]));
+		document.querySelectorAll<HTMLAnchorElement>('nav a[href^="/book/"]').forEach((a) => {
+			const slug = a.getAttribute("href")?.replace(/^\/book\//, "").replace(/\/$/, "") ?? "";
+			const chapter = bySlug.get(slug);
+			if (!chapter) return;
+			const status = statusFor(slug, chapter.hasQuiz);
+			let badge = a.querySelector<HTMLElement>(".pc-progress-badge");
+			if (status === "none") {
+				badge?.remove();
+				return;
+			}
+			if (!badge) {
+				badge = document.createElement("span");
+				badge.className = "pc-progress-badge";
+				badge.setAttribute("aria-hidden", "true");
+				a.appendChild(badge);
+			}
+			badge.dataset.status = status;
+		});
+	}
+
+	paint();
+	document.addEventListener("astro:page-load", paint);
+	onProgressChanged(paint);
+</script>

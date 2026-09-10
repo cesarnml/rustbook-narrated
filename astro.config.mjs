@@ -33,6 +33,9 @@ export default defineConfig({
         PageTitle: "./src/components/PageTitle.astro",
         // Recall quiz, below every page's content.
         Footer: "./src/components/NarratorPageFrame.astro",
+        // Per-chapter progress checkmarks, painted onto Starlight's own
+        // sidebar links — see src/components/Sidebar.astro.
+        Sidebar: "./src/components/Sidebar.astro",
       },
       sidebar: [
         {
