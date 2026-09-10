@@ -297,6 +297,15 @@ const questions = raw
 		padding: 0.75rem;
 		border-radius: 0.4rem;
 		overflow-x: auto;
+		/* Fallback background — Shiki's own inline style normally supplies
+		   this (see renderQuizMarkdown), but not every fence in this dataset
+		   goes through Shiki: a handful carry compound aquascope info
+		   strings ("aquascope,interpreter") that the fence regex doesn't
+		   parse as a language, falling through to micromark's own plain,
+		   unhighlighted <pre> — aquascope annotations are already out of
+		   scope for this site (see fetch-book.mjs), same as the main book
+		   content, but a code block still needs *a* background either way. */
+		background: var(--sl-color-gray-6);
 	}
 	.recall-quiz__prompt code {
 		font-family: var(--__sl-font-mono, monospace);
@@ -334,6 +343,11 @@ const questions = raw
 	}
 	.recall-quiz__choice-text pre {
 		margin: 0.35rem 0 0;
+		padding: 0.75rem;
+		border-radius: 0.4rem;
+		overflow-x: auto;
+		/* Same fallback as .recall-quiz__prompt pre above, same reason. */
+		background: var(--sl-color-gray-6);
 	}
 	.recall-quiz__choice[data-correct] {
 		border-color: var(--sl-color-text-accent);
@@ -371,6 +385,10 @@ const questions = raw
 		font-family: var(--__sl-font-mono, monospace);
 		font-size: var(--sl-text-sm);
 		padding-block: 0.6rem;
+		/* Horizontal inset lives on the container, not per-line, so the
+		   gutter's own left edge and each line's right edge both sit clear
+		   of the rounded box instead of touching it. */
+		padding-inline: 0.75rem;
 	}
 	/* A real gutter, not just an indent: a hairline divider separates the
 	   line numbers from the code, and the numbers themselves sit at reduced
@@ -383,9 +401,9 @@ const questions = raw
 		flex: none;
 		width: 2.25rem;
 		text-align: right;
-		padding-inline: 0 0.75rem;
 		margin-inline-end: 0.75rem;
 		border-right: 1px solid var(--sl-color-gray-5);
+		padding-inline-end: 0.75rem;
 		padding-block: 0.15rem;
 		color: var(--sl-color-gray-4);
 		user-select: none;
@@ -393,7 +411,6 @@ const questions = raw
 	.recall-quiz__line-code {
 		white-space: pre;
 		padding-block: 0.15rem;
-		padding-inline-end: 0.75rem;
 	}
 	.recall-quiz__code[data-line-pickable] .recall-quiz__line {
 		cursor: pointer;
