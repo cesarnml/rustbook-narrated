@@ -9,15 +9,15 @@
  * Two independent signals feed the sidebar checkmark:
  * - `audio`: "started" once played, "done" at >=90% or on natural end.
  * - `quiz`: "started" once any question is touched, "done" once every
- *   question has a recorded outcome (answered or revealed) — completion,
- *   not correctness; see RecallQuiz.astro.
+ *   question has a recorded outcome (answered, revealed, or skipped) —
+ *   completion, not correctness; see RecallQuiz.astro.
  *
  * Sidebar.astro derives a green/yellow/none badge from these plus whether
  * the page has a quiz at all (see `statusFor`).
  */
 
 export interface QuizAnswerState {
-	status: "correct" | "wrong" | "revealed";
+	status: "correct" | "wrong" | "revealed" | "skipped";
 	/** What the reader last entered/picked, so a reload can restore the UI. */
 	value?: string | string[];
 }

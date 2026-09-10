@@ -31,16 +31,31 @@ try {
 		flex: none;
 		display: inline-grid;
 		place-items: center;
-		width: 0.85rem;
-		height: 0.85rem;
-		border-radius: 50%;
 		margin-inline-start: 0.4rem;
 	}
-	.pc-progress-badge[data-status="done"] {
-		background: var(--sl-color-text-accent);
-	}
+	/* "started" stays a plain dot — a lightweight in-progress hint. "done" is
+	   its own shape, not just a recolored dot: a real checkmark, same weight
+	   as the ✓/✗ the quiz strip already uses, in a filled circle matching
+	   the narration player's own play-button treatment (accent fill, black
+	   glyph) so it reads as an accomplishment rather than a status color. */
 	.pc-progress-badge[data-status="started"] {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
 		background: var(--pc-color-warn);
+	}
+	.pc-progress-badge[data-status="done"] {
+		width: 0.9rem;
+		height: 0.9rem;
+		border-radius: 50%;
+		background: var(--sl-color-text-accent);
+		color: var(--sl-color-black);
+		font-size: 0.65rem;
+		font-weight: 700;
+		line-height: 1;
+	}
+	.pc-progress-badge[data-status="done"]::before {
+		content: "✔";
 	}
 </style>
 

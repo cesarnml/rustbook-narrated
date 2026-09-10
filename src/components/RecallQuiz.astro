@@ -15,8 +15,7 @@
 // blob (`data-quiz-questions`); all rendering and interaction is client-side
 // — see the <script> below. That keeps question-card markup defined in one
 // place instead of duplicated between SSR output and client state updates.
-import { renderQuizMarkdown } from "../lib/quiz-markdown";
-import { escapeHtml } from "../scripts/html-escape";
+import { highlightLines, quizHighlighter, renderQuizMarkdown } from "../lib/quiz-markdown";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -24,6 +23,10 @@ interface Props {
 	slug: string;
 }
 const { slug } = Astro.props;
+
+// Shiki's instance cache makes repeat calls across this build's many pages
+// cheap; the one-time rust+theme load is the only real cost, paid once.
+const hl = await quizHighlighter();
 
 // Static glob so Vite can see every possible quiz file at build time — a
 // template-string dynamic import of a gitignored, generated path isn't
@@ -67,15 +70,12 @@ function shuffle<T>(items: T[], seed: string): T[] {
 }
 
 function codeLines(program: string) {
-	return program
-		.replace(/\n$/, "")
-		.split("\n")
-		.map((line, i) => ({ n: i + 1, html: escapeHtml(line) || " " }));
+	return highlightLines(hl, program.replace(/\n$/, "")).map((html, i) => ({ n: i + 1, html }));
 }
 
 const questions = raw
 	.map((q) => {
-		const contextHtml = renderQuizMarkdown(q.context ?? "");
+		const contextHtml = renderQuizMarkdown(q.context ?? "", hl);
 		if (q.type === "MultipleChoice") {
 			// Upstream's authored order for a single correct answer is a fixed
 			// `answerIndex` into `distractors` — but ~2/3 of single-answer
@@ -89,7 +89,7 @@ const questions = raw
 			const distractors: string[] = q.prompt?.distractors ?? [];
 			const choices = shuffle(
 				[...distractors, ...correctAnswers].map((text) => ({
-					html: renderQuizMarkdown(text),
+					html: renderQuizMarkdown(text, hl),
 					correct: correctAnswers.includes(text),
 				})),
 				q.id,
@@ -97,7 +97,7 @@ const questions = raw
 			return {
 				id: q.id,
 				type: "MultipleChoice" as const,
-				promptHtml: renderQuizMarkdown(q.prompt?.prompt ?? ""),
+				promptHtml: renderQuizMarkdown(q.prompt?.prompt ?? "", hl),
 				contextHtml,
 				choices,
 				multi: correctAnswers.length > 1,
@@ -110,7 +110,7 @@ const questions = raw
 			return {
 				id: q.id,
 				type: "ShortAnswer" as const,
-				promptHtml: renderQuizMarkdown(q.prompt?.prompt ?? ""),
+				promptHtml: renderQuizMarkdown(q.prompt?.prompt ?? "", hl),
 				contextHtml,
 				accepted,
 			};
@@ -428,6 +428,22 @@ const questions = raw
 	.recall-quiz__next:hover {
 		color: var(--sl-color-text-accent);
 	}
+	/* Deliberately the quietest of the three actions — no pill background —
+	   so Check/Reveal still read as the primary paths and Skip as the
+	   escape hatch, not an equally-weighted third choice. */
+	.recall-quiz__skip {
+		margin-inline-start: auto;
+		padding: 0.45rem 0.5rem;
+		color: var(--sl-color-gray-3);
+		background: none;
+	}
+	.recall-quiz__skip:hover {
+		color: var(--sl-color-gray-1);
+		text-decoration: underline;
+	}
+	.recall-quiz__skip:disabled {
+		visibility: hidden;
+	}
 
 	.recall-quiz__feedback {
 		margin-top: 0.85rem;
@@ -447,6 +463,9 @@ const questions = raw
 	}
 	.recall-quiz__feedback[data-status="revealed"] .recall-quiz__feedback-status {
 		color: var(--sl-color-gray-2);
+	}
+	.recall-quiz__feedback[data-status="skipped"] .recall-quiz__feedback-status {
+		color: var(--sl-color-gray-3);
 	}
 	.recall-quiz__feedback :global(p:last-child) {
 		margin-bottom: 0;
@@ -572,7 +591,18 @@ const questions = raw
 		}
 
 
-		function feedbackBlock(status: "correct" | "wrong" | "revealed", q: Question) {
+		function feedbackBlock(status: "correct" | "wrong" | "revealed" | "skipped", q: Question) {
+			// Skip is deliberately not a quiet form of reveal: no answer, no
+			// explanation, nothing to look at — the point is to move on
+			// without being shown anything. It still counts toward the quiz
+			// being "done" (see progress.ts), same reasoning as reveal: the
+			// checkmark tracks exposure, not correctness.
+			if (status === "skipped") {
+				return `<div class="recall-quiz__feedback" data-status="skipped">
+					<p class="recall-quiz__feedback-status">Skipped</p>
+					<p class="recall-quiz__intro">You can come back to this one from the list above any time.</p>
+				</div>`;
+			}
 			const label = status === "correct" ? "✓ Correct" : status === "wrong" ? "✗ Not quite" : "Answer";
 			let extra = "";
 			if (q.type === "Tracing") {
@@ -589,10 +619,11 @@ const questions = raw
 			</div>`;
 		}
 
-		function applyFeedback(card: HTMLElement, q: Question, status: "correct" | "wrong" | "revealed") {
+		function applyFeedback(card: HTMLElement, q: Question, status: "correct" | "wrong" | "revealed" | "skipped") {
 			const existing = card.querySelector(".recall-quiz__feedback");
 			existing?.remove();
 			card.insertAdjacentHTML("beforeend", feedbackBlock(status, q));
+			if (status === "skipped") return; // nothing to annotate — see feedbackBlock above
 			if (q.type === "MultipleChoice") {
 				card.querySelectorAll<HTMLElement>(".recall-quiz__choice").forEach((el, i) => {
 					const input = el.querySelector<HTMLInputElement>("input")!;
@@ -757,6 +788,7 @@ const questions = raw
 			actions.innerHTML = `
 				<button type="button" class="recall-quiz__check" data-check disabled>Check answer</button>
 				<button type="button" class="recall-quiz__reveal" data-reveal>Reveal answer</button>
+				<button type="button" class="recall-quiz__skip" data-skip>Skip</button>
 			`;
 			card.appendChild(actions);
 
@@ -764,6 +796,7 @@ const questions = raw
 
 			const checkBtn = card.querySelector<HTMLButtonElement>("[data-check]")!;
 			const revealBtn = card.querySelector<HTMLButtonElement>("[data-reveal]")!;
+			const skipBtn = card.querySelector<HTMLButtonElement>("[data-skip]")!;
 
 			updateCheckEnabled = () => {
 				// Always gated on whether the current input is gradeable — not on
@@ -776,11 +809,15 @@ const questions = raw
 			onInteractInternal(card, updateCheckEnabled);
 			updateCheckEnabled();
 
-			function finish(status: "correct" | "wrong" | "revealed", picked: string | string[] = "") {
+			function finish(status: "correct" | "wrong" | "revealed" | "skipped", picked: string | string[] = "") {
 				applyFeedback(card, q, status);
 				persist(id!, { status, value: picked });
 				checkBtn.disabled = true;
-				revealBtn.disabled = status !== "wrong";
+				// Reveal stays available after a wrong attempt *or* a skip — both
+				// leave the reader without having seen the answer yet. Skip
+				// itself only ever makes sense pre-resolution.
+				revealBtn.disabled = status === "correct" || status === "revealed";
+				skipBtn.disabled = true;
 				if (!actions.querySelector("[data-next]")) {
 					const next = document.createElement("button");
 					next.type = "button";
@@ -802,9 +839,15 @@ const questions = raw
 				finish(result.correct ? "correct" : "wrong", result.picked);
 			});
 			revealBtn.addEventListener("click", () => finish("revealed"));
+			skipBtn.addEventListener("click", () => finish("skipped"));
 
 			if (prior) {
-				restorePrior(card, q, prior);
+				// Nothing to restore for a skip — there was never a pick to show
+				// back. For Tracing specifically, restorePrior would otherwise
+				// auto-click the *correct* compile-choice branch (it falls back
+				// to q.doesCompile when there's no real prior pick) and reveal
+				// exactly what Skip is supposed to hide.
+				if (prior.status !== "skipped") restorePrior(card, q, prior);
 				finish(prior.status, prior.value ?? "");
 			}
 		}
@@ -839,7 +882,8 @@ const questions = raw
 					row.type = "button";
 					row.className = "recall-quiz__row";
 					if (q.id === activeId) row.setAttribute("data-active", "");
-					const badgeChar = state.status === "correct" ? "✓" : state.status === "wrong" ? "✗" : "•";
+					const badgeChar =
+						state.status === "correct" ? "✓" : state.status === "wrong" ? "✗" : state.status === "skipped" ? "–" : "•";
 					const badgeColor =
 						state.status === "correct"
 							? "var(--sl-color-text-accent)"
