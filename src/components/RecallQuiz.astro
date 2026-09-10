@@ -163,14 +163,24 @@ const questions = raw
 	)
 }
 
-<style>
-	/* Token choices mirror Narration.astro's player on purpose, so the audio
+<style is:global>
+	/* is:global, not Astro's default scoped styles: every element below the
+	   top-level <section> — every question card, button, code line, choice —
+	   is built by the client <script> via innerHTML, never by this file's own
+	   template. Astro's scoping works by stamping a generated class onto
+	   elements it renders server-side and qualifying every selector here with
+	   `:where(.that-class)`; dynamically-created elements never get stamped,
+	   so scoped rules silently never matched anything below the section
+	   wrapper. (Sidebar.astro's badge hit the same thing first — same fix.)
+	   Selectors are still hand-namespaced with `recall-quiz__` so this being
+	   global costs nothing in practice.
+
+	   Token choices mirror Narration.astro's player on purpose, so the audio
 	   control up top and this quiz at the bottom read as one system. Starlight
-	   doesn't ship a warning/amber token of its own, so this defines the one
-	   custom property this feature needs — global (:root), so Sidebar.astro's
-	   progress badge can share it too, and set once whether it's needed for
-	   dark or light mode (the same amber reads fine on both here). */
-	:global(:root) {
+	   doesn't ship a warning/amber token of its own, so this also defines the
+	   one custom property this feature needs, shared with Sidebar.astro's
+	   progress badge. */
+	:root {
 		--pc-color-warn: #d97706;
 	}
 
@@ -183,6 +193,17 @@ const questions = raw
 	.recall-quiz__intro {
 		margin-top: 0;
 		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-3);
+	}
+
+	/* ---- Reused across the card: heading vs. body vs. metadata are three
+	   different jobs and should read as three different weights, not the
+	   same font-size doing everything. ---- */
+	.recall-quiz__eyebrow {
+		font-size: var(--sl-text-2xs);
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 		color: var(--sl-color-gray-3);
 	}
 
@@ -244,9 +265,7 @@ const questions = raw
 		align-items: center;
 		justify-content: space-between;
 		gap: 0.75rem;
-		margin-bottom: 0.75rem;
-		font-size: var(--sl-text-xs);
-		color: var(--sl-color-gray-3);
+		margin-bottom: 1rem;
 	}
 	.recall-quiz__dots {
 		display: flex;
@@ -262,16 +281,24 @@ const questions = raw
 		background: var(--sl-color-text-accent);
 	}
 
-	.recall-quiz__prompt :global(p:first-child) {
+	/* The question itself is the one thing on this card that should win the
+	   eye first — bumped a full step above body text and given real weight,
+	   the way a heading would be, without literally being a heading (mixed
+	   markdown content here can't always guarantee its first node is safe to
+	   retag as one). */
+	.recall-quiz__prompt p:first-child {
 		margin-top: 0;
+		font-size: var(--sl-text-lg);
+		font-weight: 600;
+		line-height: 1.45;
+		color: var(--sl-color-white);
 	}
-	.recall-quiz__prompt :global(pre) {
+	.recall-quiz__prompt pre {
 		padding: 0.75rem;
 		border-radius: 0.4rem;
-		background: var(--sl-color-gray-6);
 		overflow-x: auto;
 	}
-	.recall-quiz__prompt :global(code) {
+	.recall-quiz__prompt code {
 		font-family: var(--__sl-font-mono, monospace);
 	}
 
@@ -298,10 +325,14 @@ const questions = raw
 		accent-color: var(--sl-color-text-accent);
 		flex: none;
 	}
-	.recall-quiz__choice-text :global(p) {
+	.recall-quiz__choice-text {
+		font-size: var(--sl-text-sm);
+		color: var(--sl-color-gray-1);
+	}
+	.recall-quiz__choice-text p {
 		margin: 0;
 	}
-	.recall-quiz__choice-text :global(pre) {
+	.recall-quiz__choice-text pre {
 		margin: 0.35rem 0 0;
 	}
 	.recall-quiz__choice[data-correct] {
@@ -339,23 +370,30 @@ const questions = raw
 		overflow-x: auto;
 		font-family: var(--__sl-font-mono, monospace);
 		font-size: var(--sl-text-sm);
+		padding-block: 0.6rem;
 	}
+	/* A real gutter, not just an indent: a hairline divider separates the
+	   line numbers from the code, and the numbers themselves sit at reduced
+	   opacity — legible, but visibly secondary to the code they're labeling.
+	   Same relationship an editor's own gutter has to the buffer. */
 	.recall-quiz__line {
 		display: flex;
-		padding-inline: 0.5rem;
 	}
 	.recall-quiz__line-no {
 		flex: none;
-		width: 2rem;
+		width: 2.25rem;
 		text-align: right;
-		margin-right: 0.75rem;
-		padding-block: 0.1rem;
-		color: var(--sl-color-gray-3);
+		padding-inline: 0 0.75rem;
+		margin-inline-end: 0.75rem;
+		border-right: 1px solid var(--sl-color-gray-5);
+		padding-block: 0.15rem;
+		color: var(--sl-color-gray-4);
 		user-select: none;
 	}
 	.recall-quiz__line-code {
 		white-space: pre;
-		padding-block: 0.1rem;
+		padding-block: 0.15rem;
+		padding-inline-end: 0.75rem;
 	}
 	.recall-quiz__code[data-line-pickable] .recall-quiz__line {
 		cursor: pointer;
@@ -374,57 +412,93 @@ const questions = raw
 		box-shadow: inset 2px 0 0 var(--sl-color-text-accent);
 	}
 
+	/* A segmented control, not a row of two separate pill buttons — this is
+	   an input (pick one of two), not a pair of independent actions, and it
+	   should read differently from the Check/Reveal/Skip toolbar below it:
+	   one continuous fused shape, single shared border, only the outer
+	   corners rounded. */
 	.recall-quiz__compile-choice {
 		display: flex;
-		gap: 0.5rem;
 		margin: 0.75rem 0;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.45rem;
+		overflow: hidden;
 	}
 	.recall-quiz__compile-choice button {
 		flex: 1;
-		padding: 0.5rem 0.75rem;
-		border: 1px solid var(--sl-color-gray-5);
-		border-radius: 0.45rem;
+		padding: 0.55rem 0.75rem;
+		border: 0;
 		background: transparent;
-		color: inherit;
+		color: var(--sl-color-gray-2);
 		font: inherit;
+		font-weight: 500;
 		cursor: pointer;
 	}
+	.recall-quiz__compile-choice button:first-child {
+		border-right: 1px solid var(--sl-color-gray-5);
+	}
 	.recall-quiz__compile-choice button:hover {
-		border-color: var(--sl-color-gray-4);
+		background: var(--sl-color-gray-5);
 	}
 	.recall-quiz__compile-choice button[data-picked] {
-		border-color: var(--sl-color-text-accent);
-		background: color-mix(in srgb, var(--sl-color-text-accent) 12%, transparent);
+		color: var(--sl-color-black);
+		background: var(--sl-color-text-accent);
 	}
 
+	/* The toolbar: a hairline + a step back in opacity marks it as its own
+	   zone, separate from the question/code above it — a strip of controls
+	   sitting *under* the content, not one more paragraph of it. Three
+	   distinct visual weights inside it, matching three distinct levels of
+	   commitment: Check is the one solid, confident shape; Reveal is an
+	   outline, present but asking less of you; Skip is barely a button at
+	   all, the deliberately low-friction exit. */
 	.recall-quiz__actions {
 		display: flex;
 		align-items: center;
 		gap: 0.6rem;
-		margin-top: 0.85rem;
+		margin-top: 1rem;
+		padding-top: 0.85rem;
+		border-top: 1px solid var(--sl-color-gray-5);
 	}
 	.recall-quiz__actions button {
-		border: 0;
+		border: 1px solid transparent;
 		border-radius: 999px;
-		padding: 0.45rem 1.1rem;
+		padding: 0.5rem 1.2rem;
 		font: inherit;
 		font-size: var(--sl-text-sm);
+		font-weight: 500;
 		cursor: pointer;
+		transition: opacity 0.15s ease;
 	}
 	.recall-quiz__check {
+		font-weight: 600;
 		color: var(--sl-color-black);
 		background: var(--sl-color-text-accent);
 	}
+	.recall-quiz__check:hover:not(:disabled) {
+		opacity: 0.9;
+	}
 	.recall-quiz__check:disabled {
-		opacity: 0.4;
+		opacity: 0.35;
 		cursor: not-allowed;
 	}
-	.recall-quiz__reveal,
+	.recall-quiz__reveal {
+		color: var(--sl-color-gray-2);
+		background: transparent;
+		border-color: var(--sl-color-gray-5);
+	}
+	.recall-quiz__reveal:hover:not(:disabled) {
+		color: var(--sl-color-text-accent);
+		border-color: var(--sl-color-text-accent);
+	}
+	.recall-quiz__reveal:disabled {
+		opacity: 0.35;
+		cursor: not-allowed;
+	}
 	.recall-quiz__next {
 		color: var(--sl-color-gray-2);
 		background: var(--sl-color-gray-6);
 	}
-	.recall-quiz__reveal:hover,
 	.recall-quiz__next:hover {
 		color: var(--sl-color-text-accent);
 	}
@@ -433,8 +507,9 @@ const questions = raw
 	   escape hatch, not an equally-weighted third choice. */
 	.recall-quiz__skip {
 		margin-inline-start: auto;
-		padding: 0.45rem 0.5rem;
-		color: var(--sl-color-gray-3);
+		padding: 0.5rem 0.5rem;
+		font-weight: 400;
+		color: var(--sl-color-gray-4);
 		background: none;
 	}
 	.recall-quiz__skip:hover {
@@ -467,7 +542,7 @@ const questions = raw
 	.recall-quiz__feedback[data-status="skipped"] .recall-quiz__feedback-status {
 		color: var(--sl-color-gray-3);
 	}
-	.recall-quiz__feedback :global(p:last-child) {
+	.recall-quiz__feedback p:last-child {
 		margin-bottom: 0;
 	}
 
@@ -778,7 +853,7 @@ const questions = raw
 			card.className = "recall-quiz__card";
 			card.innerHTML = `
 				<div class="recall-quiz__meta">
-					<span>Question ${index + 1} of ${questions.length}</span>
+					<span class="recall-quiz__eyebrow">Question ${index + 1} of ${questions.length}</span>
 					<span class="recall-quiz__dots">${questions.map((qq) => `<span class="recall-quiz__dot" ${answers[qq.id] ? "data-done" : ""}></span>`).join("")}</span>
 				</div>
 			`;

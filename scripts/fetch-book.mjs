@@ -176,10 +176,34 @@ function stripDuplicateLeadingHeading(body, title) {
 const sidebarOut = [];
 const vocabularyChapters = []; // written for scripts/check-vocabulary.mjs to cross-check against
 
+// mdBook's own rendered sidebar numbers each top-level chapter and each of
+// its sub-chapters ("3", "3.1", "3.2", ...) — real wayfinding structure
+// (where am I, how many chapters left) that Starlight's default sidebar,
+// unlike mdBook's, doesn't give you for free. Recomputed here from
+// SUMMARY.md's own nesting (2-space indent per level — see the parse above)
+// rather than trusting any numbering embedded in upstream's chapter
+// filenames, which doesn't always agree (ch06-04-inventory.md is a
+// numbered "inventory" exercise, not sub-chapter 6.4 of anything).
+// Simplification: mdBook gives its lone Appendix section letter-numbering
+// ("Appendix A"); this keeps one flat sequential count through it instead —
+// less authentic, but "chapter N of the book" is the wayfinding value this
+// is actually for, and one exception isn't worth the special case.
+let topNumber = 0;
+let subNumber = 0;
+
 for (const section of sections) {
   const sidebarItems = [];
   for (const item of section.items) {
     chapterIndex += 1;
+    let displayNumber;
+    if (item.depth > 0) {
+      subNumber += 1;
+      displayNumber = `${topNumber}.${subNumber}`;
+    } else {
+      topNumber += 1;
+      subNumber = 0;
+      displayNumber = `${topNumber}`;
+    }
     // Upstream's own filenames already encode chapter/section order
     // (e.g. ch03-02-data-types.md) and are unique — more robust to reuse
     // them as the slug than to re-derive numbering ourselves, especially
@@ -214,7 +238,7 @@ for (const section of sections) {
       writeFileSync(join(OUT_QUIZ, `${slug}.json`), JSON.stringify(questions, null, 2));
     }
 
-    sidebarItems.push({ label: item.title, link: `/book/${slug}/` });
+    sidebarItems.push({ label: `${displayNumber} ${item.title}`, link: `/book/${slug}/` });
     // hasQuiz travels to the client (via Sidebar.astro) so the sidebar
     // checkmark logic can tell "no quiz on this page" apart from "quiz on
     // this page, not yet done" without a separate fetch per page.

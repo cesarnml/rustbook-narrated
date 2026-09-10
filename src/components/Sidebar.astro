@@ -57,6 +57,22 @@ try {
 	.pc-progress-badge[data-status="done"]::before {
 		content: "✔";
 	}
+
+	/* Wayfinding numbers ("3", "3.2" — see fetch-book.mjs) get their own
+	   muted, tabular-figure treatment so they read as a position marker
+	   sitting *next to* the title, not part of the title's own text. Top-
+	   level entries already render bold via Starlight's own `.large` class
+	   (see SidebarSublist.astro) and sub-items already sit one indent step
+	   in — this just makes the number itself the same quiet, secondary
+	   weight for both levels, echoing the numbered-outline feel of the
+	   original mdBook sidebar (structure, not its literal skin). */
+	.pc-chapter-num {
+		font-variant-numeric: tabular-nums;
+		color: var(--sl-color-gray-3);
+	}
+	a[aria-current="page"] .pc-chapter-num {
+		color: inherit;
+	}
 </style>
 
 <script>
@@ -74,6 +90,25 @@ try {
 		} catch {
 			return [];
 		}
+	}
+
+	// Structural, not state-dependent — runs once per page-load rather than
+	// on every progress change. fetch-book.mjs prefixes each book sidebar
+	// label with its number as plain text ("3.2 Data Types"); this splits
+	// that back out into its own span so it can be styled separately (see
+	// .pc-chapter-num above) without touching fetch-book.mjs's simpler
+	// plain-string approach or Starlight's own label rendering.
+	function numberizeLabels() {
+		document.querySelectorAll<HTMLAnchorElement>('nav a[href^="/book/"]').forEach((a) => {
+			const span = a.querySelector<HTMLElement>(":scope > span");
+			if (!span || span.querySelector(".pc-chapter-num")) return;
+			const match = (span.textContent ?? "").match(/^(\d+(?:\.\d+)?)\s(.+)$/);
+			if (!match) return;
+			const numEl = document.createElement("span");
+			numEl.className = "pc-chapter-num";
+			numEl.textContent = match[1]!;
+			span.replaceChildren(numEl, document.createTextNode(` ${match[2]}`));
+		});
 	}
 
 	function paint() {
@@ -98,7 +133,11 @@ try {
 		});
 	}
 
+	numberizeLabels();
 	paint();
-	document.addEventListener("astro:page-load", paint);
+	document.addEventListener("astro:page-load", () => {
+		numberizeLabels();
+		paint();
+	});
 	onProgressChanged(paint);
 </script>
